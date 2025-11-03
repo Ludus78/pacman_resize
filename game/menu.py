@@ -1,0 +1,1 @@
+# Menu principal (structure uniquement)
