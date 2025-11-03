@@ -67,4 +67,3 @@ def run_main_menu(stdscr: "curses._CursesWindow") -> str:
 # Menu principal
 def main_menu() -> str:
     return curses.wrapper(run_main_menu)
-

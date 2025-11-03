@@ -62,6 +62,5 @@ class PowerPellet(Pellet):
 
 
 class Token(Entity):
-    # Jeton bonus ou objet spécial (à définir selon les besoins)
+    # Jeton bonus/malus (à définir)
     pass
-
