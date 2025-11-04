@@ -2,7 +2,8 @@ from game.menu import main_menu
 import curses
 import pygame
 from game.map import GameMap
-from game.entities import Position, Pacman
+from game.entities import Position, Pacman, Pellet, PowerPellet
+from game.score import Score
 
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
@@ -12,6 +13,18 @@ def run_game(stdscr) -> None:
 
     # Charge la carte et prépare les collisions
     game_map = GameMap.from_file("assets/maps/maplv1.map")
+
+    # Extrait les collectibles (points '.' et gros 'o') comme entités
+    dots: dict[tuple[int, int], Pellet] = {}
+    power_dots: dict[tuple[int, int], PowerPellet] = {}
+    for y, row in enumerate(game_map.rows):
+        for x, ch in enumerate(row):
+            if ch == '.':
+                pos = (x, y)
+                dots[pos] = Pellet(Position(x, y), value=1)
+            elif ch in ('o', 'O'):
+                pos = (x, y)
+                power_dots[pos] = PowerPellet(Position(x, y))
 
     # Calcul de la taille de la fenêtre en pixels
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
@@ -31,6 +44,10 @@ def run_game(stdscr) -> None:
 
     # Vitesse en tuiles/seconde (mouvement fluide avec dt)
     pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
+
+    # Score et police d'affichage
+    score = Score()
+    font = pygame.font.SysFont(None, 18)
 
     clock = pygame.time.Clock()
     move_accum = 0.0  # accumule la progression pour des pas d'une tuile
@@ -69,6 +86,14 @@ def run_game(stdscr) -> None:
             # Chaque step déplace d'exactement 1 tuile (avec collisions)
             for _ in range(steps):
                 pacman.update(1 / pacman.speed, game_map=game_map)
+                # Vérifie si Pacman mange un collectible à la nouvelle case
+                ppos = (pacman.position.x, pacman.position.y)
+                if ppos in dots:
+                    score.add(dots[ppos].value)
+                    del dots[ppos]
+                elif ppos in power_dots:
+                    score.add(power_dots[ppos].value)
+                    del power_dots[ppos]
 
         # Rendu
         screen.fill((0, 0, 0))
@@ -77,10 +102,20 @@ def run_game(stdscr) -> None:
             for x, ch in enumerate(row):
                 if ch == '#':
                     pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE, TILE, TILE))
+        # Dessine les collectibles
+        for (cx, cy) in dots.keys():
+            pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(2, TILE // 8))
+        for (cx, cy) in power_dots.keys():
+            pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(4, TILE // 4))
+
         # Dessine Pacman
         px = pacman.position.x * TILE + TILE // 2
         py = pacman.position.y * TILE + TILE // 2
         pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
+
+        # Affiche le score (coin haut-gauche)
+        score_surf = font.render(str(score), True, (255, 255, 255))
+        screen.blit(score_surf, (4, 2))
 
         pygame.display.flip()
 
