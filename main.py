@@ -1,8 +1,8 @@
 from game.menu import main_menu
 import curses
-import pygame
+import pygame  # type: ignore
 from game.map import GameMap
-from game.entities import Position, Pacman, Pellet, PowerPellet
+from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
 
 # Lance la boucle de jeu
@@ -49,8 +49,22 @@ def run_game(stdscr) -> None:
     score = Score()
     font = pygame.font.SysFont(None, 18)
 
+    # Instancie les fantômes définis dans la carte par la lettre 'G'
+    ghosts: list[Ghost] = []
+    colors = ["red", "blue", "pink", "orange"]
+    while True:
+        gpos = game_map.find_char('G')
+        if gpos is None:
+            break
+        gx, gy = gpos
+        game_map.clear_char('G')
+        ghost = Ghost(Position(x=gx, y=gy), speed=pacman.speed, direction=(0, 0), color=colors[len(ghosts) % len(colors)])
+        ghosts.append(ghost)
+
+    ghost_accums = [0.0 for _ in ghosts]
+
     clock = pygame.time.Clock()
-    move_accum = 0.0  # accumule la progression pour des pas d'une tuile
+    move_accum = 0.0
     running = True
     while running:
         # 30 FPS et dt en secondes
@@ -95,6 +109,15 @@ def run_game(stdscr) -> None:
                     score.add(power_dots[ppos].value)
                     del power_dots[ppos]
 
+        # Met à jour et dessine les fantômes
+        for i, ghost in enumerate(ghosts):
+            ghost_accums[i] += ghost.speed * dt
+            gsteps = int(ghost_accums[i])
+            if gsteps > 0:
+                ghost_accums[i] -= gsteps
+                for _ in range(gsteps):
+                    ghost.update(1 / ghost.speed, game_map=game_map)
+
         # Rendu
         screen.fill((0, 0, 0))
         # Dessine la carte (# = mur bleu, sinon noir)
@@ -112,6 +135,24 @@ def run_game(stdscr) -> None:
         px = pacman.position.x * TILE + TILE // 2
         py = pacman.position.y * TILE + TILE // 2
         pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
+
+        # Dessine les fantômes
+        for ghost in ghosts:
+            col = ghost.color
+            if isinstance(col, str):
+                # Color names to RGB fallback
+                color_map = {
+                    "red": (200, 30, 30),
+                    "blue": (60, 120, 255),
+                    "pink": (255, 100, 180),
+                    "orange": (255, 150, 24),
+                }
+                col = color_map.get(col.lower(), (200, 30, 30))
+            elif not isinstance(col, (tuple, list)):
+                col = (200, 30, 30)
+            gx = ghost.position.x * TILE + TILE // 2
+            gy = ghost.position.y * TILE + TILE // 2
+            pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
 
         # Affiche le score (coin haut-gauche)
         score_surf = font.render(str(score), True, (255, 255, 255))
