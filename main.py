@@ -51,6 +51,11 @@ def run_game(stdscr) -> None:
     title_font = pygame.font.SysFont(None, 72)
     score_big_font = pygame.font.SysFont(None, 48)
 
+    # Champ de vision en tuiles (masque circulaire)
+    # Initialise large pour afficher toute la carte au début
+    fov_tiles = max(width_px, height_px) // TILE
+    shrink_timer = 0.0
+
     # Instancie les fantômes définis dans la carte par la lettre 'G'
     ghosts: list[Ghost] = []
     colors = ["red", "blue", "pink", "orange"]
@@ -112,6 +117,8 @@ def run_game(stdscr) -> None:
                     elif ppos in power_dots:
                         score.add(power_dots[ppos].value)
                         del power_dots[ppos]
+                        # Superpoint: élargit le champ de vision de 5 tuiles
+                        fov_tiles += 5
 
                     # Collision immédiate Pacman <-> fantôme après ce pas
                     for ghost in ghosts:
@@ -177,6 +184,20 @@ def run_game(stdscr) -> None:
             gx = ghost.position.x * TILE + TILE // 2
             gy = ghost.position.y * TILE + TILE // 2
             pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
+
+        # Masque de champ de vision: rétrécit d'1 tuile toutes les 5 secondes
+        if not game_over:
+            shrink_timer += dt
+            if shrink_timer >= 3.0:
+                shrink_timer -= 3.0
+                if fov_tiles > 0:
+                    fov_tiles -= 1
+
+        # Applique un overlay sombre avec trou circulaire autour de Pacman
+        overlay = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0))
+        pygame.draw.circle(overlay, (0, 0, 0, 0), (px, py), max(0, fov_tiles) * TILE + TILE // 2)
+        screen.blit(overlay, (0, 0))
 
         # Affiche le score (coin haut-gauche)
         score_surf = font.render(str(score), True, (255, 255, 255))
