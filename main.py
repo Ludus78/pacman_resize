@@ -65,20 +65,6 @@ def run_game(stdscr) -> None:
 
     ghost_accums = [0.0 for _ in ghosts]
 
-    # Instancie les fantômes définis dans la carte par la lettre 'G'
-    ghosts: list[Ghost] = []
-    colors = ["red", "blue", "pink", "orange"]
-    while True:
-        gpos = game_map.find_char('G')
-        if gpos is None:
-            break
-        gx, gy = gpos
-        game_map.clear_char('G')
-        ghost = Ghost(Position(x=gx, y=gy), speed=pacman.speed, direction=(0, 0), color=colors[len(ghosts) % len(colors)])
-        ghosts.append(ghost)
-
-    ghost_accums = [0.0 for _ in ghosts]
-
     clock = pygame.time.Clock()
     move_accum = 0.0
     running = True
@@ -156,15 +142,6 @@ def run_game(stdscr) -> None:
                     game_over = True
                     break
 
-        # Met à jour et dessine les fantômes
-        for i, ghost in enumerate(ghosts):
-            ghost_accums[i] += ghost.speed * dt
-            gsteps = int(ghost_accums[i])
-            if gsteps > 0:
-                ghost_accums[i] -= gsteps
-                for _ in range(gsteps):
-                    ghost.update(1 / ghost.speed, game_map=game_map)
-
         # Rendu
         screen.fill((0, 0, 0))
         # Dessine la carte (# = mur bleu, sinon noir)
@@ -220,10 +197,6 @@ def run_game(stdscr) -> None:
 
 # Point d'entrée du jeu Pacman
 def main() -> None:
-    # Initialise le gestionnaire de son (démarre automatiquement la musique)
-    from game.sound_manager import SoundManager
-    SoundManager()
-
     # Affiche le menu principal et attend un choix de l'utilisateur
     choix = main_menu()
 
