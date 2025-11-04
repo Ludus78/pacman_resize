@@ -38,7 +38,17 @@ class MovableEntity(Entity):
 
 class Pacman(MovableEntity):
     # Représente Pacman, contrôlé par le joueur
-    pass
+    def __init__(self, position: Position, **kwargs) -> None:
+        super().__init__(position, **kwargs)
+        from .score import Score  # import local pour éviter les dépendances circulaires
+        self.score: Score = Score()
+
+    def add_points(self, amount: int) -> None:
+        """Ajoute *amount* points au score du joueur."""
+        self.score.add(amount)
+
+    def reset_score(self) -> None:
+        self.score.reset()
 
 
 class Ghost(MovableEntity):
