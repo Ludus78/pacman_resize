@@ -38,11 +38,13 @@ class MovableEntity(Entity):
 
 class Pacman(MovableEntity):
     # Représente Pacman, contrôlé par le joueur
-    def __init__(self, position: Position, speed: int = 100) -> None:
+    def __init__(self, position: Position, speed: int = 4) -> None:
         """Initialise Pacman.
 
-        position: Position en pixels (x, y).
-        speed: vitesse en pixels par seconde.
+        position: Position en tuiles (x, y) — colonne, ligne.
+        speed: vitesse en tuiles par seconde (par défaut 4 tuiles/s).
+        Note: la valeur par défaut a été choisie pour être tile-based. Si ton code
+        attend des pixels, ajuste la valeur en conséquence.
         """
         # MovableEntity expects speed as int and direction tuple
         super().__init__(position=position, direction=(0, 0), speed=speed)
@@ -66,20 +68,109 @@ class Pacman(MovableEntity):
 
         self.desired_direction = (dx, dy)
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, game_map=None) -> None:
         """Met à jour la position de Pacman en appliquant la direction désirée si présente.
 
-        Cette méthode applique un mouvement en 4 directions. Si une direction désirée
-        est définie, elle devient la direction active. Le mouvement reste sur les
-        axes (pas de diagonales).
+        Si `game_map` est fourni, on empêchera Pacman de traverser les murs.
+        Le `game_map` peut être :
+          - un module/objet ayant un attribut `MAP` (liste de chaînes),
+          - ou un objet exposant `is_wall(x, y)` / `is_blocked(x, y)` / `get_tile(x, y)`.
+
+        La fonction supporte des déplacements multiples (si la vitesse produit dx>1),
+        en testant chaque pas intermédiaire pour éviter de sauter des murs.
+
         dt: temps écoulé en secondes.
         """
-        # Si une direction est demandée, l'appliquer (priorité au joueur)
+        # Appliquer la direction désirée si demandée
         if self.desired_direction != (0, 0):
             self.direction = self.desired_direction
 
-        # Appeler la logique de déplacement de la classe parente
-        super().update(dt)
+        # Calculer le déplacement proposé (utilise la même logique que MovableEntity)
+        dx = int(self.direction[0] * self.speed * dt)
+        dy = int(self.direction[1] * self.speed * dt)
+
+        # Si pas de carte fournie, déléguer au parent (comportement précédent)
+        if game_map is None:
+            if dx != 0 or dy != 0:
+                self.position = Position(self.position.x + dx, self.position.y + dy)
+            return
+
+        # Déplacer en pas unitaires pour éviter de traverser un mur si dx/dy > 1
+        steps = max(abs(dx), abs(dy))
+        if steps == 0:
+            return
+
+        step_x = 0
+        step_y = 0
+        if dx != 0:
+            step_x = 1 if dx > 0 else -1
+        if dy != 0:
+            step_y = 1 if dy > 0 else -1
+
+        for i in range(1, steps + 1):
+            nx = self.position.x + (step_x * i if step_x != 0 else 0)
+            ny = self.position.y + (step_y * i if step_y != 0 else 0)
+
+            if not self.can_move_to(nx, ny, game_map):
+                # Ne pas entrer dans la case bloquée : placer Pacman juste avant
+                # la case bloquée (i-1 pas complets)
+                self.position = Position(self.position.x + (step_x * (i - 1) if step_x != 0 else 0),
+                                         self.position.y + (step_y * (i - 1) if step_y != 0 else 0))
+                return
+
+        # Si toutes les cases intermédiaires sont franchissables, appliquer le déplacement
+        self.position = Position(self.position.x + dx, self.position.y + dy)
+
+    def can_move_to(self, x: int, y: int, game_map) -> bool:
+        """Retourne True si la case (x, y) est franchissable.
+
+        Le comportement par défaut :
+          - si `game_map` a un attribut `MAP` (liste de chaînes), on considère '#'
+            comme mur (non franchissable).
+          - sinon, on essaie d'appeler des méthodes usuelles (`is_wall`, `is_blocked`,
+            `get_tile`) si elles existent.
+
+        x est la colonne, y la ligne (convention compatible avec `assets/maps/map.py`).
+        """
+        # 1) Si game_map expose MAP (liste de chaînes)
+        grid = getattr(game_map, "MAP", None)
+        if grid is None:
+            # Peut être que game_map est directement la grille
+            if isinstance(game_map, (list, tuple)):
+                grid = game_map
+
+        if isinstance(grid, (list, tuple)) and len(grid) > 0:
+            try:
+                # Vérifier bornes
+                if y < 0 or y >= len(grid):
+                    return False
+                row = grid[y]
+                if x < 0 or x >= len(row):
+                    return False
+                return row[x] != "#"
+            except Exception:
+                # En cas d'erreur, considérer comme bloqué
+                return False
+
+        # 2) Vérifier méthodes usuelles sur game_map
+        if hasattr(game_map, "is_wall") and callable(game_map.is_wall):
+            try:
+                return not game_map.is_wall(x, y)
+            except Exception:
+                pass
+        if hasattr(game_map, "is_blocked") and callable(game_map.is_blocked):
+            try:
+                return not game_map.is_blocked(x, y)
+            except Exception:
+                pass
+        if hasattr(game_map, "get_tile") and callable(game_map.get_tile):
+            try:
+                return game_map.get_tile(x, y) != "#"
+            except Exception:
+                pass
+
+        # Si aucun test possible, on renvoie True pour ne pas casser le jeu
+        return True
 
     # Méthode utilitaire pour obtenir la position en tuple
     def get_position(self) -> tuple[int, int]:
