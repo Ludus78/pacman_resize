@@ -1,13 +1,9 @@
 from game.menu import main_menu
 import curses
-import pygame # type: ignore
+import pygame  # type: ignore
 from game.map import GameMap
-<<<<<<< HEAD
-from game.entities import Position, Pacman, Pellet, PowerPellet
+from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
-=======
-from game.entities import Position, Pacman, Ghost
->>>>>>> 9c3ef08 (phantom logic added (random moves, wall block...))
 
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
@@ -49,11 +45,10 @@ def run_game(stdscr) -> None:
     # Vitesse en tuiles/seconde (mouvement fluide avec dt)
     pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
 
-<<<<<<< HEAD
     # Score et police d'affichage
     score = Score()
     font = pygame.font.SysFont(None, 18)
-=======
+
     # Instancie les fantômes définis dans la carte par la lettre 'G'
     ghosts: list[Ghost] = []
     colors = ["red", "blue", "pink", "orange"]
@@ -67,10 +62,9 @@ def run_game(stdscr) -> None:
         ghosts.append(ghost)
 
     ghost_accums = [0.0 for _ in ghosts]
->>>>>>> 9c3ef08 (phantom logic added (random moves, wall block...))
 
     clock = pygame.time.Clock()
-    move_accum = 0.0 
+    move_accum = 0.0
     running = True
     while running:
         # 30 FPS et dt en secondes
@@ -115,6 +109,15 @@ def run_game(stdscr) -> None:
                     score.add(power_dots[ppos].value)
                     del power_dots[ppos]
 
+        # Met à jour et dessine les fantômes
+        for i, ghost in enumerate(ghosts):
+            ghost_accums[i] += ghost.speed * dt
+            gsteps = int(ghost_accums[i])
+            if gsteps > 0:
+                ghost_accums[i] -= gsteps
+                for _ in range(gsteps):
+                    ghost.update(1 / ghost.speed, game_map=game_map)
+
         # Rendu
         screen.fill((0, 0, 0))
         # Dessine la carte (# = mur bleu, sinon noir)
@@ -133,29 +136,27 @@ def run_game(stdscr) -> None:
         py = pacman.position.y * TILE + TILE // 2
         pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
 
-<<<<<<< HEAD
-        # Affiche le score (coin haut-gauche)
-        score_surf = font.render(str(score), True, (255, 255, 255))
-        screen.blit(score_surf, (4, 2))
-=======
-        # Met à jour et dessine les fantômes
-        for i, ghost in enumerate(ghosts):
-            ghost_accums[i] += ghost.speed * dt
-            gsteps = int(ghost_accums[i])
-            if gsteps > 0:
-                ghost_accums[i] -= gsteps
-                for _ in range(gsteps):
-                    ghost.update(1 / ghost.speed, game_map=game_map)
-
-            # utilise directement la couleur fournie par l'objet ghost
+        # Dessine les fantômes
+        for ghost in ghosts:
             col = ghost.color
-            if not isinstance(col, (tuple, list)):
-                # fallback minimal si une chaîne est fournie
+            if isinstance(col, str):
+                # Color names to RGB fallback
+                color_map = {
+                    "red": (200, 30, 30),
+                    "blue": (60, 120, 255),
+                    "pink": (255, 100, 180),
+                    "orange": (255, 150, 24),
+                }
+                col = color_map.get(col.lower(), (200, 30, 30))
+            elif not isinstance(col, (tuple, list)):
                 col = (200, 30, 30)
             gx = ghost.position.x * TILE + TILE // 2
             gy = ghost.position.y * TILE + TILE // 2
             pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
->>>>>>> 9c3ef08 (phantom logic added (random moves, wall block...))
+
+        # Affiche le score (coin haut-gauche)
+        score_surf = font.render(str(score), True, (255, 255, 255))
+        screen.blit(score_surf, (4, 2))
 
         pygame.display.flip()
 
