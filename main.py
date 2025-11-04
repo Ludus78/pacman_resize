@@ -13,6 +13,16 @@ def run_game(stdscr) -> None:
     # Charge la carte et prépare les collisions
     game_map = GameMap.from_file("assets/maps/maplv1.map")
 
+    # Extrait les collectibles (points '.' et gros 'o') à partir de la carte
+    dots: set[tuple[int, int]] = set()
+    power_dots: set[tuple[int, int]] = set()
+    for y, row in enumerate(game_map.rows):
+        for x, ch in enumerate(row):
+            if ch == '.':
+                dots.add((x, y))
+            elif ch in ('o', 'O'):
+                power_dots.add((x, y))
+
     # Calcul de la taille de la fenêtre en pixels
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
     height_px = len(game_map.rows) * TILE
@@ -69,6 +79,12 @@ def run_game(stdscr) -> None:
             # Chaque step déplace d'exactement 1 tuile (avec collisions)
             for _ in range(steps):
                 pacman.update(1 / pacman.speed, game_map=game_map)
+                # Vérifie si Pacman mange un collectible à la nouvelle case
+                ppos = (pacman.position.x, pacman.position.y)
+                if ppos in dots:
+                    dots.remove(ppos)
+                elif ppos in power_dots:
+                    power_dots.remove(ppos)
 
         # Rendu
         screen.fill((0, 0, 0))
@@ -77,6 +93,12 @@ def run_game(stdscr) -> None:
             for x, ch in enumerate(row):
                 if ch == '#':
                     pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE, TILE, TILE))
+        # Dessine les collectibles
+        for (cx, cy) in dots:
+            pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(2, TILE // 8))
+        for (cx, cy) in power_dots:
+            pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(4, TILE // 4))
+
         # Dessine Pacman
         px = pacman.position.x * TILE + TILE // 2
         py = pacman.position.y * TILE + TILE // 2
