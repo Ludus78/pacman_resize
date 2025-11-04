@@ -87,20 +87,12 @@ def run_game(stdscr) -> None:
 
     pygame.quit()
 
-# === Musique de lancement ===
-pygame.mixer.init()
-SOUND_DIR = os.path.join("assets", "sounds")
-# Choisis le nom de ton fichier ici (ex: theme.wav, theme.ogg, etc.)
-SONG_FILE = "Songretrogaming.mp3"
-song_path = os.path.join(SOUND_DIR, SONG_FILE)
-if os.path.exists(song_path):
-    pygame.mixer.music.load(song_path)
-    pygame.mixer.music.play(-1)  # -1 pour boucle infinie
-else:
-    print(f"Fichier audio non trouvé : {song_path}")
-
 # Point d'entrée du jeu Pacman
 def main() -> None:
+    # Initialise le gestionnaire de son (démarre automatiquement la musique)
+    from game.sound_manager import SoundManager
+    SoundManager()
+
     # Affiche le menu principal et attend un choix de l'utilisateur
     choix = main_menu()
 
