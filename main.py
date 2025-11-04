@@ -2,7 +2,7 @@ from game.menu import main_menu
 import curses
 import pygame
 from game.map import GameMap
-from game.entities import Position, Pacman
+from game.entities import Position, Pacman, Pellet, PowerPellet
 
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
@@ -13,15 +13,17 @@ def run_game(stdscr) -> None:
     # Charge la carte et prépare les collisions
     game_map = GameMap.from_file("assets/maps/maplv1.map")
 
-    # Extrait les collectibles (points '.' et gros 'o') à partir de la carte
-    dots: set[tuple[int, int]] = set()
-    power_dots: set[tuple[int, int]] = set()
+    # Extrait les collectibles (points '.' et gros 'o') comme entités
+    dots: dict[tuple[int, int], Pellet] = {}
+    power_dots: dict[tuple[int, int], PowerPellet] = {}
     for y, row in enumerate(game_map.rows):
         for x, ch in enumerate(row):
             if ch == '.':
-                dots.add((x, y))
+                pos = (x, y)
+                dots[pos] = Pellet(Position(x, y), value=1)
             elif ch in ('o', 'O'):
-                power_dots.add((x, y))
+                pos = (x, y)
+                power_dots[pos] = PowerPellet(Position(x, y))
 
     # Calcul de la taille de la fenêtre en pixels
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
@@ -82,9 +84,9 @@ def run_game(stdscr) -> None:
                 # Vérifie si Pacman mange un collectible à la nouvelle case
                 ppos = (pacman.position.x, pacman.position.y)
                 if ppos in dots:
-                    dots.remove(ppos)
+                    del dots[ppos]
                 elif ppos in power_dots:
-                    power_dots.remove(ppos)
+                    del power_dots[ppos]
 
         # Rendu
         screen.fill((0, 0, 0))
@@ -94,9 +96,9 @@ def run_game(stdscr) -> None:
                 if ch == '#':
                     pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE, TILE, TILE))
         # Dessine les collectibles
-        for (cx, cy) in dots:
+        for (cx, cy) in dots.keys():
             pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(2, TILE // 8))
-        for (cx, cy) in power_dots:
+        for (cx, cy) in power_dots.keys():
             pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(4, TILE // 4))
 
         # Dessine Pacman
