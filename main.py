@@ -43,12 +43,12 @@ def run_game(stdscr) -> None:
     # État de la manche (réinitialisable)
     dots: dict[tuple[int, int], Pellet] = {}
     power_dots: dict[tuple[int, int], PowerPellet] = {}
-    pacman: Pacman
-    ghosts: list[Ghost]
-    ghost_accums: list[float]
-    fov_tiles: int
-    shrink_timer: float
-    move_accum: float
+    pacman = Pacman(Position(0, 0), speed=4)
+    ghosts: list[Ghost] = []
+    ghost_accums: list[float] = []
+    fov_tiles = max(width_px, height_px) // TILE
+    shrink_timer = 0.0
+    move_accum = 0.0
 
     # Helper interne pour (re)créer une manche sans relancer le jeu complet
     def reset_round() -> None:
