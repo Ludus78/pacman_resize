@@ -1,24 +1,27 @@
 from game.menu import main_menu
 import curses
+import pygame
 from game.map import GameMap
-from game.entities import Position
+from game.entities import Position, Pacman
 
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
-    # Initialise l'affichage
-    stdscr.clear()
-    curses.curs_set(0)
-    if curses.has_colors():
-        curses.start_color()
-        curses.use_default_colors()
+    # Initialisation de pygame et de la fenêtre
+    pygame.init()
+    TILE = 16
 
     # Charge la carte et prépare les collisions
     game_map = GameMap.from_file("assets/maps/maplv1.map")
 
+    # Calcul de la taille de la fenêtre en pixels
+    width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
+    height_px = len(game_map.rows) * TILE
+    screen = pygame.display.set_mode((width_px, height_px))
+    pygame.display.set_caption("Pacman")
+
     # Position initiale: essaie de lire 'P' depuis la carte, sinon fallback
     start = game_map.find_char('P')
     if start is None:
-        # cherche une case vide proche
         start_pos = (1, 1)
         if game_map.is_blocked(*start_pos):
             start_pos = (0, 0)
@@ -26,44 +29,62 @@ def run_game(stdscr) -> None:
         start_pos = start
         game_map.clear_char('P')
 
-    player = Position(x=start_pos[0], y=start_pos[1])
+    # Vitesse en tuiles/seconde (mouvement fluide avec dt)
+    pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
 
-    stdscr.nodelay(True)
-    while True:
-        stdscr.clear()
-        game_map.draw(stdscr)
-        # Dessine le joueur
-        try:
-            stdscr.addch(player.y, player.x, 'P')
-        except curses.error:
-            pass
-        stdscr.refresh()
+    clock = pygame.time.Clock()
+    move_accum = 0.0  # accumule la progression pour des pas d'une tuile
+    running = True
+    while running:
+        # 30 FPS et dt en secondes
+        dt = clock.tick(30) / 1000.0
 
-        key = stdscr.getch()
-        if key == -1:
-            # pas d'entrée, boucle continue
-            continue
+        # Gestion des événements (quit/escape)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                running = False
 
-        if key in (27, ord('q')):
-            # ESC ou q pour quitter la partie
-            break
-
+        # Lecture des touches maintenues pour orienter Pacman en continu
+        keys = pygame.key.get_pressed()
         dx, dy = 0, 0
-        # azerty layout: z (haut), s (bas), q (gauche), d (droite)
-        if key in (curses.KEY_UP, ord('z'), ord('w'), ord('k')):
-            dy = -1
-        elif key in (curses.KEY_DOWN, ord('s'), ord('j')):
-            dy = 1
-        elif key in (curses.KEY_LEFT, ord('q'), ord('a'), ord('h')):
+        # Priorité horizontale si les deux axes sont pressés (évite diagonales)
+        if keys[pygame.K_LEFT] or keys[pygame.K_q]:
             dx = -1
-        elif key in (curses.KEY_RIGHT, ord('d'), ord('l')):
+        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             dx = 1
+        elif keys[pygame.K_UP] or keys[pygame.K_z]:
+            dy = -1
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            dy = 1
 
-        next_x = player.x + dx
-        next_y = player.y + dy
-        if not game_map.is_blocked(next_x, next_y):
-            player.x = next_x
-            player.y = next_y
+        pacman.set_desired_direction(dx, dy)
+
+        # Convertit la vitesse continue en pas de 1 tuile avec un accumulateur
+        move_accum += pacman.speed * dt
+        steps = int(move_accum)
+        if steps > 0:
+            move_accum -= steps
+            # Chaque step déplace d'exactement 1 tuile (avec collisions)
+            for _ in range(steps):
+                pacman.update(1 / pacman.speed, game_map=game_map)
+
+        # Rendu
+        screen.fill((0, 0, 0))
+        # Dessine la carte (# = mur bleu, sinon noir)
+        for y, row in enumerate(game_map.rows):
+            for x, ch in enumerate(row):
+                if ch == '#':
+                    pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE, TILE, TILE))
+        # Dessine Pacman
+        px = pacman.position.x * TILE + TILE // 2
+        py = pacman.position.y * TILE + TILE // 2
+        pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
+
+        pygame.display.flip()
+
+    pygame.quit()
 
 # Point d'entrée du jeu Pacman
 def main() -> None:

@@ -13,9 +13,18 @@ def load_map(path: str) -> list[str]:
 
 
 def draw_map(stdscr, map_data: list[str]) -> None:
-    # Affiche la carte dans le terminal
+    # Affiche la carte dans le terminal en respectant la taille de l'écran
+    height, width = stdscr.getmaxyx()
+    max_y = max(0, height - 1)
+    max_w = max(0, width - 1)
     for y, line in enumerate(map_data):
-        stdscr.addstr(y, 0, line)
+        if y > max_y:
+            break
+        safe_line = line[:max_w]
+        try:
+            stdscr.addstr(y, 0, safe_line)
+        except Exception:
+            pass
 
 
 class GameMap:
