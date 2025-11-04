@@ -3,6 +3,7 @@ import curses
 import pygame
 from game.map import GameMap
 from game.entities import Position, Pacman, Pellet, PowerPellet
+from game.score import Score
 
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
@@ -44,6 +45,10 @@ def run_game(stdscr) -> None:
     # Vitesse en tuiles/seconde (mouvement fluide avec dt)
     pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
 
+    # Score et police d'affichage
+    score = Score()
+    font = pygame.font.SysFont(None, 18)
+
     clock = pygame.time.Clock()
     move_accum = 0.0  # accumule la progression pour des pas d'une tuile
     running = True
@@ -84,8 +89,10 @@ def run_game(stdscr) -> None:
                 # Vérifie si Pacman mange un collectible à la nouvelle case
                 ppos = (pacman.position.x, pacman.position.y)
                 if ppos in dots:
+                    score.add(dots[ppos].value)
                     del dots[ppos]
                 elif ppos in power_dots:
+                    score.add(power_dots[ppos].value)
                     del power_dots[ppos]
 
         # Rendu
@@ -105,6 +112,10 @@ def run_game(stdscr) -> None:
         px = pacman.position.x * TILE + TILE // 2
         py = pacman.position.y * TILE + TILE // 2
         pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
+
+        # Affiche le score (coin haut-gauche)
+        score_surf = font.render(str(score), True, (255, 255, 255))
+        screen.blit(score_surf, (4, 2))
 
         pygame.display.flip()
 
