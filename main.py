@@ -5,6 +5,7 @@ from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
 import random
+from game.map_generator import generate_map
 
 # Attend l'appui sur Entrée pour relancer la manche.
 # Retourne True si Enter (ou pavé numérique Enter) est pressé,
@@ -46,17 +47,14 @@ def run_game(stdscr) -> None:
     pygame.init()
     TILE = 16
 
-    # Gestion des niveaux et cartes disponibles
-    map_paths = [
-        "assets/maps/maplv1.map",
-        "assets/maps/maplv2.map",
-        "assets/maps/maplv3.map",
-    ]
-    current_map_path = random.choice(map_paths)
+    # Gestion des niveaux: génération procédurale
+    # Dimensions cibles (en tuiles) pour la génération; on peut varier légèrement par niveau
+    base_w, base_h = 28, 20
+    current_rows = generate_map(base_w, base_h, num_ghosts=4)
     ghost_speed_factor = 1.0
 
     # Charge la carte et prépare les collisions + fenêtre
-    game_map = GameMap.from_file(current_map_path)
+    game_map = GameMap(current_rows)
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
     height_px = len(game_map.rows) * TILE
     screen = pygame.display.set_mode((width_px, height_px))
@@ -79,10 +77,10 @@ def run_game(stdscr) -> None:
     move_accum = 0.0
 
     # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
-    def reset_round(map_path: str, *, reset_score: bool) -> None:
+    def reset_round(rows: list[str], *, reset_score: bool) -> None:
         nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen
-        # Recharge la carte depuis le fichier courant
-        game_map = GameMap.from_file(map_path)
+        # Recharge la carte depuis des lignes générées
+        game_map = GameMap(rows)
         # Adapter la taille de la fenêtre si la carte change de dimensions
         width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
         height_px = len(game_map.rows) * TILE
@@ -129,7 +127,7 @@ def run_game(stdscr) -> None:
             score = Score()
 
     # Première initialisation de la manche (nouvelle partie => reset score)
-    reset_round(current_map_path, reset_score=True)
+    reset_round(current_rows, reset_score=True)
 
     clock = pygame.time.Clock()
     running = True
@@ -308,11 +306,11 @@ def run_game(stdscr) -> None:
         if game_over:
             # Attente Entrée (relancer) ou Échap/Fermeture (quitter) – reset score
             if wait_for_enter(screen, clock):
-                # Redémarre depuis une nouvelle carte aléatoire, remet le score
-                next_map = random.choice(map_paths)
-                current_map_path = next_map
+                # Redémarre depuis une nouvelle carte générée, remet le score
                 ghost_speed_factor = 1.0
-                reset_round(current_map_path, reset_score=True)
+                # Regénère une carte de base
+                current_rows = generate_map(base_w, base_h, num_ghosts=4)
+                reset_round(current_rows, reset_score=True)
                 game_over = False
                 victory = False
                 continue
@@ -326,15 +324,17 @@ def run_game(stdscr) -> None:
             btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
             btn_rect.center = (width_px // 2, height_px // 2 + 60)
             if wait_for_button_or_enter(screen, clock, btn_rect):
-                # Choisit une nouvelle carte aléatoire (différente si possible)
-                candidates = [p for p in map_paths if p != current_map_path]
-                if not candidates:
-                    candidates = map_paths[:]
-                current_map_path = random.choice(candidates)
+                # Génère une nouvelle carte (peut varier légèrement en taille)
+                # Variation légère de dimensions pour la variété
+                jitter_w = random.choice([-2, 0, 2])
+                jitter_h = random.choice([-2, 0, 2])
+                width_new = max(21, base_w + jitter_w)
+                height_new = max(15, base_h + jitter_h)
+                current_rows = generate_map(width_new, height_new, num_ghosts=4)
                 # Augmente légèrement la vitesse des fantômes
                 ghost_speed_factor *= 1.10
                 # Démarre le nouveau niveau sans réinitialiser le score
-                reset_round(current_map_path, reset_score=False)
+                reset_round(current_rows, reset_score=False)
                 victory = False
                 game_over = False
                 continue
