@@ -321,18 +321,22 @@ def run_game(stdscr) -> None:
 
         # Dessine les fantômes
         for ghost in ghosts:
-            col = ghost.color
-            if isinstance(col, str):
-                # Color names to RGB fallback
-                color_map = {
-                    "red": (200, 30, 30),
-                    "blue": (60, 120, 255),
-                    "pink": (255, 100, 180),
-                    "orange": (255, 150, 24),
-                }
-                col = color_map.get(col.lower(), (200, 30, 30))
-            elif not isinstance(col, (tuple, list)):
-                col = (200, 30, 30)
+            # Si pouvoir actif, fantômes en violet
+            if frightened_timer > 0.0:
+                col = (170, 80, 255)
+            else:
+                col = ghost.color
+                if isinstance(col, str):
+                    # Color names to RGB fallback
+                    color_map = {
+                        "red": (200, 30, 30),
+                        "blue": (60, 120, 255),
+                        "pink": (255, 100, 180),
+                        "orange": (255, 150, 24),
+                    }
+                    col = color_map.get(col.lower(), (200, 30, 30))
+                elif not isinstance(col, (tuple, list)):
+                    col = (200, 30, 30)
             gx = ghost.position.x * TILE + TILE // 2
             gy = ghost.position.y * TILE + TILE // 2
             pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
