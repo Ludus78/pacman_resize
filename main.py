@@ -4,6 +4,8 @@ import pygame  # type: ignore
 from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
+import random
+from game.map_generator import generate_map
 
 # Attend l'appui sur Entrée pour relancer la manche.
 # Retourne True si Enter (ou pavé numérique Enter) est pressé,
@@ -21,14 +23,38 @@ def wait_for_enter(screen, clock):
         # On garde un léger rythme pour rester réactif sans cramer le CPU
         clock.tick(30)
 
+# Attend un clic sur un bouton rectangulaire ou Entrée.
+# Retourne True si l'utilisateur valide (clic dans le bouton ou Entrée),
+# False si Échap ou fermeture de la fenêtre.
+def wait_for_button_or_enter(screen, clock, button_rect: pygame.Rect) -> bool:
+    while True:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                return False
+            if ev.type == pygame.KEYDOWN:
+                if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    return True
+                if ev.key == pygame.K_ESCAPE:
+                    return False
+            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                if button_rect.collidepoint(ev.pos):
+                    return True
+        clock.tick(30)
+
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
     # Initialisation de pygame et de la fenêtre
     pygame.init()
     TILE = 16
 
+    # Gestion des niveaux: génération procédurale
+    # Dimensions cibles (en tuiles) pour la génération; on peut varier légèrement par niveau
+    base_w, base_h = 28, 20
+    current_rows = generate_map(base_w, base_h, num_ghosts=4)
+    ghost_speed_factor = 1.0
+
     # Charge la carte et prépare les collisions + fenêtre
-    game_map = GameMap.from_file("assets/maps/maplv1.map")
+    game_map = GameMap(current_rows)
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
     height_px = len(game_map.rows) * TILE
     screen = pygame.display.set_mode((width_px, height_px))
@@ -50,11 +76,15 @@ def run_game(stdscr) -> None:
     shrink_timer = 0.0
     move_accum = 0.0
 
-    # Helper interne pour (re)créer une manche sans relancer le jeu complet
-    def reset_round() -> None:
-        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score
-        # Recharge la carte depuis le fichier (même niveau)
-        game_map = GameMap.from_file("assets/maps/maplv1.map")
+    # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
+    def reset_round(rows: list[str], *, reset_score: bool) -> None:
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen
+        # Recharge la carte depuis des lignes générées
+        game_map = GameMap(rows)
+        # Adapter la taille de la fenêtre si la carte change de dimensions
+        width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
+        height_px = len(game_map.rows) * TILE
+        screen = pygame.display.set_mode((width_px, height_px))
         # Recrée les collectibles
         dots = {}
         power_dots = {}
@@ -83,34 +113,44 @@ def run_game(stdscr) -> None:
                 break
             gx, gy = gpos
             game_map.clear_char('G')
-            ghost = Ghost(Position(x=gx, y=gy), speed=pacman.speed, direction=(0, 0), color=colors_local[len(ghosts) % len(colors_local)])
+            # Applique un léger scaling de vitesse des fantômes selon le niveau
+            ghost_speed = max(1.0, pacman.speed * ghost_speed_factor)
+            ghost = Ghost(Position(x=gx, y=gy), speed=ghost_speed, direction=(0, 0), color=colors_local[len(ghosts) % len(colors_local)])
             ghosts.append(ghost)
         ghost_accums = [0.0 for _ in ghosts]
         # Champ de vision et timers
         fov_tiles = max(width_px, height_px) // TILE
         shrink_timer = 0.0
         move_accum = 0.0
-        # Score remis à zéro
-        score = Score()
+        # Score: remis à zéro uniquement si demandé (ex: après Game Over)
+        if reset_score:
+            score = Score()
 
-    # Première initialisation de la manche
-    reset_round()
+    # Première initialisation de la manche (nouvelle partie => reset score)
+    reset_round(current_rows, reset_score=True)
 
     clock = pygame.time.Clock()
     running = True
     game_over = False
+    victory = False
     while running:
         # 30 FPS et dt en secondes
         dt = clock.tick(30) / 1000.0
 
-        # Gestion des événements (quit/escape)
+        # Gestion des événements (quit/escape + debug)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                # Raccourci debug: force la victoire en vidant les pastilles
+                if not game_over and not victory:
+                    dots.clear()
+                    power_dots.clear()
+                    victory = True
 
-        if not game_over:
+        if not game_over and not victory:
             # Lecture des touches maintenues pour orienter Pacman en continu
             keys = pygame.key.get_pressed()
             dx, dy = 0, 0
@@ -144,6 +184,11 @@ def run_game(stdscr) -> None:
                         del power_dots[ppos]
                         # Superpoint: élargit le champ de vision de 5 tuiles
                         fov_tiles += 5
+
+                    # Victoire si toutes les pastilles sont mangées
+                    if not dots and not power_dots:
+                        victory = True
+                        break
 
                     # Collision immédiate Pacman <-> fantôme après ce pas
                     for ghost in ghosts:
@@ -237,13 +282,60 @@ def run_game(stdscr) -> None:
             screen.blit(title_surf, title_rect)
             screen.blit(score_big_surf, score_rect)
 
+        # Écran de VICTOIRE
+        if victory:
+            title_surf = title_font.render("VICTOIRE", True, (80, 220, 80))
+            score_big_surf = score_big_font.render(f"Score: {score}", True, (255, 255, 255))
+            title_rect = title_surf.get_rect(center=(width_px // 2, height_px // 2 - 40))
+            score_rect = score_big_surf.get_rect(center=(width_px // 2, height_px // 2))
+            screen.blit(title_surf, title_rect)
+            screen.blit(score_big_surf, score_rect)
+
+            # Bouton "Niveau suivant"
+            btn_w, btn_h = 220, 48
+            btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
+            btn_rect.center = (width_px // 2, height_px // 2 + 60)
+            pygame.draw.rect(screen, (40, 140, 255), btn_rect, border_radius=8)
+            btn_text = font.render("Niveau suivant (Entrée)", True, (255, 255, 255))
+            btn_text_rect = btn_text.get_rect(center=btn_rect.center)
+            screen.blit(btn_text, btn_text_rect)
+
         pygame.display.flip()
 
-        # Si la manche est terminée, on attend l'action du joueur
+        # Si la manche est terminée (défaite ou victoire), on attend l'action du joueur
         if game_over:
-            # Affiche l'écran et attend Entrée (relancer) ou Échap/Fermeture (quitter)
+            # Attente Entrée (relancer) ou Échap/Fermeture (quitter) – reset score
             if wait_for_enter(screen, clock):
-                reset_round()
+                # Redémarre depuis une nouvelle carte générée, remet le score
+                ghost_speed_factor = 1.0
+                # Regénère une carte de base
+                current_rows = generate_map(base_w, base_h, num_ghosts=4)
+                reset_round(current_rows, reset_score=True)
+                game_over = False
+                victory = False
+                continue
+            else:
+                running = False
+
+        if victory:
+            # Attente clic sur le bouton ou Entrée pour passer au niveau suivant
+            # (Échap/Fermeture quitte le jeu)
+            btn_w, btn_h = 220, 48
+            btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
+            btn_rect.center = (width_px // 2, height_px // 2 + 60)
+            if wait_for_button_or_enter(screen, clock, btn_rect):
+                # Génère une nouvelle carte (peut varier légèrement en taille)
+                # Variation légère de dimensions pour la variété
+                jitter_w = random.choice([-2, 0, 2])
+                jitter_h = random.choice([-2, 0, 2])
+                width_new = max(21, base_w + jitter_w)
+                height_new = max(15, base_h + jitter_h)
+                current_rows = generate_map(width_new, height_new, num_ghosts=4)
+                # Augmente légèrement la vitesse des fantômes
+                ghost_speed_factor *= 1.10
+                # Démarre le nouveau niveau sans réinitialiser le score
+                reset_round(current_rows, reset_score=False)
+                victory = False
                 game_over = False
                 continue
             else:
