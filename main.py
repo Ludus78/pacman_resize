@@ -5,6 +5,7 @@ from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
 import random
+import os
 from game.map_generator import generate_map
 
 # Attend l'appui sur Entrée pour relancer la manche.
@@ -47,11 +48,37 @@ def run_game(stdscr) -> None:
     pygame.init()
     TILE = 16
 
-    # Gestion des niveaux: génération procédurale
+    # Gestion des niveaux: 3 cartes statiques, puis génération procédurale
     # Dimensions cibles (en tuiles) pour la génération; on peut varier légèrement par niveau
-    base_w, base_h = 28, 20
-    current_rows = generate_map(base_w, base_h, num_ghosts=4)
+    base_w, base_h, num_ghosts = 28, 24, 4
+
+    # Chargeur de carte depuis un fichier .map
+    def load_map_file(path: str) -> list[str]:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return [line.rstrip("\n") for line in f]
+        except OSError:
+            return []
+
+    # Liste des niveaux statiques (absolus, basés sur ce fichier)
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    static_levels = [
+        os.path.join(root_dir, "assets", "maps", "maplv1.map"),
+        os.path.join(root_dir, "assets", "maps", "maplv2.map"),
+        os.path.join(root_dir, "assets", "maps", "maplv3.map"),
+    ]
+    current_level_index = 0
+    in_procedural_mode = False
     ghost_speed_factor = 1.0
+
+    # Détermine la carte initiale: priorise les niveaux statiques
+    initial_rows = load_map_file(static_levels[current_level_index]) if static_levels else []
+    if initial_rows:
+        current_rows = initial_rows
+    else:
+        # Fallback si fichiers manquants
+        in_procedural_mode = True
+        current_rows = generate_map(base_w, base_h, num_ghosts=num_ghosts)
 
     # Charge la carte et prépare les collisions + fenêtre
     game_map = GameMap(current_rows)
@@ -306,10 +333,17 @@ def run_game(stdscr) -> None:
         if game_over:
             # Attente Entrée (relancer) ou Échap/Fermeture (quitter) – reset score
             if wait_for_enter(screen, clock):
-                # Redémarre depuis une nouvelle carte générée, remet le score
+                # Redémarrage complet de la boucle de niveaux: 3 cartes statiques puis procédural
                 ghost_speed_factor = 1.0
-                # Regénère une carte de base
-                current_rows = generate_map(base_w, base_h, num_ghosts=4)
+                in_procedural_mode = False
+                current_level_index = 0
+                first_rows = load_map_file(static_levels[current_level_index]) if static_levels else []
+                if first_rows:
+                    current_rows = first_rows
+                else:
+                    # Fallback si fichiers absents
+                    in_procedural_mode = True
+                    current_rows = generate_map(base_w, base_h, num_ghosts=num_ghosts)
                 reset_round(current_rows, reset_score=True)
                 game_over = False
                 victory = False
@@ -324,15 +358,30 @@ def run_game(stdscr) -> None:
             btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
             btn_rect.center = (width_px // 2, height_px // 2 + 60)
             if wait_for_button_or_enter(screen, clock, btn_rect):
-                # Génère une nouvelle carte (peut varier légèrement en taille)
-                # Variation légère de dimensions pour la variété
-                jitter_w = random.choice([-2, 0, 2])
-                jitter_h = random.choice([-2, 0, 2])
-                width_new = max(21, base_w + jitter_w)
-                height_new = max(15, base_h + jitter_h)
-                current_rows = generate_map(width_new, height_new, num_ghosts=4)
-                # Augmente légèrement la vitesse des fantômes
-                ghost_speed_factor *= 1.10
+                # Si on a encore des niveaux statiques à jouer, charge le suivant
+                if not in_procedural_mode and current_level_index + 1 < len(static_levels):
+                    current_level_index += 1
+                    next_rows = load_map_file(static_levels[current_level_index])
+                    if not next_rows:
+                        # Si le fichier est manquant, bascule en génération
+                        in_procedural_mode = True
+                        jitter_w = random.choice([-2, 0, 2])
+                        jitter_h = random.choice([-2, 0, 2])
+                        width_new = max(21, base_w + jitter_w)
+                        height_new = max(15, base_h + jitter_h)
+                        next_rows = generate_map(width_new, height_new, num_ghosts=num_ghosts)
+                        ghost_speed_factor *= 1.10
+                    current_rows = next_rows
+                else:
+                    # Procédural (après les 3 cartes): génère un nouveau niveau
+                    in_procedural_mode = True
+                    jitter_w = random.choice([-2, 0, 2])
+                    jitter_h = random.choice([-2, 0, 2])
+                    width_new = max(21, base_w + jitter_w)
+                    height_new = max(15, base_h + jitter_h)
+                    current_rows = generate_map(width_new, height_new, num_ghosts=num_ghosts)
+                    # Augmente légèrement la vitesse des fantômes
+                    ghost_speed_factor *= 1.10
                 # Démarre le nouveau niveau sans réinitialiser le score
                 reset_round(current_rows, reset_score=False)
                 victory = False
