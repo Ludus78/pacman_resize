@@ -5,68 +5,98 @@ from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
 
+# Attend l'appui sur Entrée pour relancer la manche.
+# Retourne True si Enter (ou pavé numérique Enter) est pressé,
+# False si Échap ou fermeture de la fenêtre.
+def wait_for_enter(screen, clock):
+    while True:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                return False
+            if ev.type == pygame.KEYDOWN:
+                if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    return True
+                if ev.key == pygame.K_ESCAPE:
+                    return False
+        # On garde un léger rythme pour rester réactif sans cramer le CPU
+        clock.tick(30)
+
 # Lance la boucle de jeu
 def run_game(stdscr) -> None:
     # Initialisation de pygame et de la fenêtre
     pygame.init()
     TILE = 16
 
-    # Charge la carte et prépare les collisions
+    # Charge la carte et prépare les collisions + fenêtre
     game_map = GameMap.from_file("assets/maps/maplv1.map")
-
-    # Extrait les collectibles (points '.' et gros 'o') comme entités
-    dots: dict[tuple[int, int], Pellet] = {}
-    power_dots: dict[tuple[int, int], PowerPellet] = {}
-    for y, row in enumerate(game_map.rows):
-        for x, ch in enumerate(row):
-            if ch == '.':
-                pos = (x, y)
-                dots[pos] = Pellet(Position(x, y), value=1)
-            elif ch in ('o', 'O'):
-                pos = (x, y)
-                power_dots[pos] = PowerPellet(Position(x, y))
-
-    # Calcul de la taille de la fenêtre en pixels
     width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
     height_px = len(game_map.rows) * TILE
     screen = pygame.display.set_mode((width_px, height_px))
     pygame.display.set_caption("Pacman")
 
-    # Position initiale: essaie de lire 'P' depuis la carte, sinon fallback
-    start = game_map.find_char('P')
-    if start is None:
-        start_pos = (1, 1)
-        if game_map.is_blocked(*start_pos):
-            start_pos = (0, 0)
-    else:
-        start_pos = start
-        game_map.clear_char('P')
-
-    # Vitesse en tuiles/seconde (mouvement fluide avec dt)
-    pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
-
-    # Score et polices d'affichage
+    # Score et polices d'affichage (polices réutilisées même après reset)
     score = Score()
     font = pygame.font.SysFont(None, 18)
     title_font = pygame.font.SysFont(None, 72)
     score_big_font = pygame.font.SysFont(None, 48)
 
-    # Instancie les fantômes définis dans la carte par la lettre 'G'
+    # État de la manche (réinitialisable)
+    dots: dict[tuple[int, int], Pellet] = {}
+    power_dots: dict[tuple[int, int], PowerPellet] = {}
+    pacman = Pacman(Position(0, 0), speed=4)
     ghosts: list[Ghost] = []
-    colors = ["red", "blue", "pink", "orange"]
-    while True:
-        gpos = game_map.find_char('G')
-        if gpos is None:
-            break
-        gx, gy = gpos
-        game_map.clear_char('G')
-        ghost = Ghost(Position(x=gx, y=gy), speed=pacman.speed, direction=(0, 0), color=colors[len(ghosts) % len(colors)])
-        ghosts.append(ghost)
+    ghost_accums: list[float] = []
+    fov_tiles = max(width_px, height_px) // TILE
+    shrink_timer = 0.0
+    move_accum = 0.0
 
-    ghost_accums = [0.0 for _ in ghosts]
+    # Helper interne pour (re)créer une manche sans relancer le jeu complet
+    def reset_round() -> None:
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score
+        # Recharge la carte depuis le fichier (même niveau)
+        game_map = GameMap.from_file("assets/maps/maplv1.map")
+        # Recrée les collectibles
+        dots = {}
+        power_dots = {}
+        for y, row in enumerate(game_map.rows):
+            for x, ch in enumerate(row):
+                if ch == '.':
+                    dots[(x, y)] = Pellet(Position(x, y), value=1)
+                elif ch in ('o', 'O'):
+                    power_dots[(x, y)] = PowerPellet(Position(x, y))
+        # Position initiale
+        start = game_map.find_char('P')
+        if start is None:
+            start_pos = (1, 1)
+            if game_map.is_blocked(*start_pos):
+                start_pos = (0, 0)
+        else:
+            start_pos = start
+            game_map.clear_char('P')
+        pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
+        # Fantômes
+        ghosts = []
+        colors_local = ["red", "blue", "pink", "orange"]
+        while True:
+            gpos = game_map.find_char('G')
+            if gpos is None:
+                break
+            gx, gy = gpos
+            game_map.clear_char('G')
+            ghost = Ghost(Position(x=gx, y=gy), speed=pacman.speed, direction=(0, 0), color=colors_local[len(ghosts) % len(colors_local)])
+            ghosts.append(ghost)
+        ghost_accums = [0.0 for _ in ghosts]
+        # Champ de vision et timers
+        fov_tiles = max(width_px, height_px) // TILE
+        shrink_timer = 0.0
+        move_accum = 0.0
+        # Score remis à zéro
+        score = Score()
+
+    # Première initialisation de la manche
+    reset_round()
 
     clock = pygame.time.Clock()
-    move_accum = 0.0
     running = True
     game_over = False
     while running:
@@ -112,6 +142,8 @@ def run_game(stdscr) -> None:
                     elif ppos in power_dots:
                         score.add(power_dots[ppos].value)
                         del power_dots[ppos]
+                        # Superpoint: élargit le champ de vision de 5 tuiles
+                        fov_tiles += 5
 
                     # Collision immédiate Pacman <-> fantôme après ce pas
                     for ghost in ghosts:
@@ -178,6 +210,20 @@ def run_game(stdscr) -> None:
             gy = ghost.position.y * TILE + TILE // 2
             pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
 
+        # Masque de champ de vision: rétrécit d'1 tuile toutes les 5 secondes
+        if not game_over:
+            shrink_timer += dt
+            if shrink_timer >= 3.0:
+                shrink_timer -= 3.0
+                if fov_tiles > 0:
+                    fov_tiles -= 1
+
+        # Applique un overlay sombre avec trou circulaire autour de Pacman
+        overlay = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0))
+        pygame.draw.circle(overlay, (0, 0, 0, 0), (px, py), max(0, fov_tiles) * TILE + TILE // 2)
+        screen.blit(overlay, (0, 0))
+
         # Affiche le score (coin haut-gauche)
         score_surf = font.render(str(score), True, (255, 255, 255))
         screen.blit(score_surf, (4, 2))
@@ -192,6 +238,16 @@ def run_game(stdscr) -> None:
             screen.blit(score_big_surf, score_rect)
 
         pygame.display.flip()
+
+        # Si la manche est terminée, on attend l'action du joueur
+        if game_over:
+            # Affiche l'écran et attend Entrée (relancer) ou Échap/Fermeture (quitter)
+            if wait_for_enter(screen, clock):
+                reset_round()
+                game_over = False
+                continue
+            else:
+                running = False
 
     pygame.quit()
 
