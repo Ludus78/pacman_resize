@@ -25,5 +25,3 @@ if __name__ == "__main__":
     # Laisse pacman_pos à None pour ne pas afficher 'P'. Exemple: (1, 1)
     pacman_pos = None
     print_map(MAP, pacman_pos)
-
-
