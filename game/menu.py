@@ -18,11 +18,13 @@ def _draw_menu(stdscr: "curses._CursesWindow", selected_idx: int) -> None:
     # Title
     x_title = max(0, (width - len(title)) // 2)
     stdscr.attron(curses.A_BOLD)
-    stdscr.addstr(2, x_title, title)
+    if 2 < height:
+        stdscr.addnstr(2, x_title, title, max(0, width - x_title - 1))
     stdscr.attroff(curses.A_BOLD)
 
     x_sub = max(0, (width - len(subtitle)) // 2)
-    stdscr.addstr(4, x_sub, subtitle)
+    if 4 < height:
+        stdscr.addnstr(4, x_sub, subtitle, max(0, width - x_sub - 1))
 
     # Affiche les items du menu avec indicateurs visuels selon l'item sélectionné
     start_y = max(6, height // 2 - len(MENU_ITEMS))
@@ -31,12 +33,16 @@ def _draw_menu(stdscr: "curses._CursesWindow", selected_idx: int) -> None:
         marker_right = " ◀" if idx == selected_idx else "  "
         line = f"{marker_left}{label}{marker_right}"
         x = max(0, (width - len(line)) // 2)
+        y = start_y + idx * 2
+        if y >= height:
+            break
+        draw_len = max(0, width - x - 1)
         if idx == selected_idx:
             stdscr.attron(curses.A_REVERSE)
-            stdscr.addstr(start_y + idx * 2, x, line)
+            stdscr.addnstr(y, x, line, draw_len)
             stdscr.attroff(curses.A_REVERSE)
         else:
-            stdscr.addstr(start_y + idx * 2, x, line)
+            stdscr.addnstr(y, x, line, draw_len)
 
     stdscr.refresh()
 
@@ -66,4 +72,8 @@ def run_main_menu(stdscr: "curses._CursesWindow") -> str:
 
 # Menu principal
 def main_menu() -> str:
-    return curses.wrapper(run_main_menu)
+    try:
+        return curses.wrapper(run_main_menu)
+    except Exception:
+        # Fallback sur terminaux non compatibles/tailles trop petites: démarrer directement
+        return "JOUER"
