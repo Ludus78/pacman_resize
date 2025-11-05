@@ -93,6 +93,9 @@ def run_game(stdscr) -> None:
     font = pygame.font.SysFont(None, 18)
     title_font = pygame.font.SysFont(None, 72)
     score_big_font = pygame.font.SysFont(None, 48)
+    ui_title_font = pygame.font.SysFont(None, 22)
+    # Espace réservé sous le titre pour éviter la superposition avec le jeu
+    ui_offset = 28
 
     # État de la manche (réinitialisable)
     dots: dict[tuple[int, int], Pellet] = {}
@@ -106,16 +109,17 @@ def run_game(stdscr) -> None:
     frightened_timer = 0.0
     respawn_timers: list[tuple[float, str, float]] = []  # (remaining, color, speed)
     cage_pos: tuple[int, int] | None = None
+    elapsed_time = 0.0
 
     # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
     def reset_round(rows: list[str], *, reset_score: bool) -> None:
-        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, respawn_timers, cage_pos
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, respawn_timers, cage_pos, elapsed_time
         # Recharge la carte depuis des lignes générées
         game_map = GameMap(rows)
         # Adapter la taille de la fenêtre si la carte change de dimensions
         width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
         height_px = len(game_map.rows) * TILE
-        screen = pygame.display.set_mode((width_px, height_px))
+        screen = pygame.display.set_mode((width_px, height_px + ui_offset))
         # Recrée les collectibles
         dots = {}
         power_dots = {}
@@ -157,6 +161,8 @@ def run_game(stdscr) -> None:
         move_accum = 0.0
         frightened_timer = 0.0
         respawn_timers = []
+        elapsed_time = 0.0
+        _ = elapsed_time
         # Score: remis à zéro uniquement si demandé (ex: après Game Over)
         if reset_score:
             score = Score()
@@ -187,6 +193,7 @@ def run_game(stdscr) -> None:
 
         if not game_over and not victory:
             # Lecture des touches maintenues pour orienter Pacman en continu
+            elapsed_time += dt
             keys = pygame.key.get_pressed()
             dx, dy = 0, 0
             # Priorité horizontale si les deux axes sont pressés (évite diagonales)
@@ -307,16 +314,16 @@ def run_game(stdscr) -> None:
         for y, row in enumerate(game_map.rows):
             for x, ch in enumerate(row):
                 if ch == '#':
-                    pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE, TILE, TILE))
+                    pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE + ui_offset, TILE, TILE))
         # Dessine les collectibles
         for (cx, cy) in dots.keys():
-            pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(2, TILE // 8))
+            pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2 + ui_offset), max(2, TILE // 8))
         for (cx, cy) in power_dots.keys():
-            pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2), max(4, TILE // 4))
+            pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2 + ui_offset), max(4, TILE // 4))
 
         # Dessine Pacman
         px = pacman.position.x * TILE + TILE // 2
-        py = pacman.position.y * TILE + TILE // 2
+        py = pacman.position.y * TILE + TILE // 2 + ui_offset
         pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
 
         # Dessine les fantômes
@@ -338,7 +345,7 @@ def run_game(stdscr) -> None:
                 elif not isinstance(col, (tuple, list)):
                     col = (200, 30, 30)
             gx = ghost.position.x * TILE + TILE // 2
-            gy = ghost.position.y * TILE + TILE // 2
+            gy = ghost.position.y * TILE + TILE // 2 + ui_offset
             pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
 
         # Masque de champ de vision: rétrécit d'1 tuile toutes les 5 secondes
@@ -350,21 +357,41 @@ def run_game(stdscr) -> None:
                     fov_tiles -= 1
 
         # Applique un overlay sombre avec trou circulaire autour de Pacman
-        overlay = pygame.Surface((width_px, height_px), pygame.SRCALPHA)
+        overlay = pygame.Surface((width_px, height_px + ui_offset), pygame.SRCALPHA)
         overlay.fill((0, 0, 0))
         pygame.draw.circle(overlay, (0, 0, 0, 0), (px, py), max(0, fov_tiles) * TILE + TILE // 2)
         screen.blit(overlay, (0, 0))
 
-        # Affiche le score (coin haut-gauche)
-        score_surf = font.render(str(score), True, (255, 255, 255))
-        screen.blit(score_surf, (4, 2))
+        # Ligne supérieure (titre) + barre d'interface
+        # Fine ligne colorée tout en haut
+        pygame.draw.line(screen, (255, 160, 60), (0, 0), (width_px, 0), 2)
+        bar_h = 24
+        pygame.draw.rect(screen, (20, 24, 60), (0, 2, width_px, bar_h))
+        # Titre centré
+        title_s = ui_title_font.render("PACMAN", True, (255, 255, 255))
+        screen.blit(title_s, (width_px // 2 - title_s.get_width() // 2, 4))
+        # Infos: Level & Score à gauche, Temps à droite
+        level_surf = font.render(f"Level {level_number}", True, (0, 200, 255))
+        x_left = 6
+        screen.blit(level_surf, (x_left, 4))
+        score_surf = font.render(f"Score {score}", True, (255, 230, 80))
+        x_left += level_surf.get_width() + 12
+        screen.blit(score_surf, (x_left, 4))
+        # Temps format MM:SS à droite
+        mm = int(elapsed_time) // 60
+        ss = int(elapsed_time) % 60
+        time_text = f"{mm:02d}:{ss:02d}"
+        time_surf = font.render(time_text, True, (255, 200, 200))
+        screen.blit(time_surf, (width_px - time_surf.get_width() - 6, 4))
+        # Ligne de séparation sous la barre
+        pygame.draw.line(screen, (90, 100, 160), (0, 2 + bar_h), (width_px, 2 + bar_h), 2)
 
         # Surimpression GAME OVER si nécessaire
         if game_over:
             title_surf = title_font.render("GAME OVER", True, (255, 50, 50))
             score_big_surf = score_big_font.render(f"Score: {score}", True, (255, 255, 255))
-            title_rect = title_surf.get_rect(center=(width_px // 2, height_px // 2 - 24))
-            score_rect = score_big_surf.get_rect(center=(width_px // 2, height_px // 2 + 24))
+            title_rect = title_surf.get_rect(center=(width_px // 2, height_px // 2 + ui_offset // 2 - 24))
+            score_rect = score_big_surf.get_rect(center=(width_px // 2, height_px // 2 + ui_offset // 2 + 24))
             screen.blit(title_surf, title_rect)
             screen.blit(score_big_surf, score_rect)
 
@@ -372,15 +399,15 @@ def run_game(stdscr) -> None:
         if victory:
             title_surf = title_font.render("VICTOIRE", True, (80, 220, 80))
             score_big_surf = score_big_font.render(f"Score: {score}", True, (255, 255, 255))
-            title_rect = title_surf.get_rect(center=(width_px // 2, height_px // 2 - 40))
-            score_rect = score_big_surf.get_rect(center=(width_px // 2, height_px // 2))
+            title_rect = title_surf.get_rect(center=(width_px // 2, height_px // 2 + ui_offset // 2 - 40))
+            score_rect = score_big_surf.get_rect(center=(width_px // 2, height_px // 2 + ui_offset // 2))
             screen.blit(title_surf, title_rect)
             screen.blit(score_big_surf, score_rect)
 
             # Bouton "Niveau suivant"
             btn_w, btn_h = 220, 48
             btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
-            btn_rect.center = (width_px // 2, height_px // 2 + 60)
+            btn_rect.center = (width_px // 2, height_px // 2 + ui_offset // 2 + 60)
             pygame.draw.rect(screen, (40, 140, 255), btn_rect, border_radius=8)
             btn_text = font.render("Niveau suivant (Entrée)", True, (255, 255, 255))
             btn_text_rect = btn_text.get_rect(center=btn_rect.center)
