@@ -4,6 +4,7 @@ import pygame  # type: ignore
 from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
+from game import settings, hardcore
 import random
 from game.map_generator import generate_map
 
@@ -52,6 +53,12 @@ def run_game(stdscr) -> None:
     base_w, base_h = 28, 20
     current_rows = generate_map(base_w, base_h, num_ghosts=4)
     ghost_speed_factor = 1.0
+
+    # Active le mode hardcore si nécessaire
+    if settings.hardcore_mode:
+        hardcore.start()
+    else:
+        hardcore.stop()
 
     # Charge la carte et prépare les collisions + fenêtre
     game_map = GameMap(current_rows)
@@ -179,9 +186,13 @@ def run_game(stdscr) -> None:
                     if ppos in dots:
                         score.add(dots[ppos].value)
                         del dots[ppos]
+                        if settings.hardcore_mode:
+                            hardcore.decrease()
                     elif ppos in power_dots:
                         score.add(power_dots[ppos].value)
                         del power_dots[ppos]
+                        if settings.hardcore_mode:
+                            hardcore.decrease()
                         # Superpoint: élargit le champ de vision de 5 tuiles
                         fov_tiles += 5
 
@@ -332,6 +343,9 @@ def run_game(stdscr) -> None:
                 height_new = max(15, base_h + jitter_h)
                 current_rows = generate_map(width_new, height_new, num_ghosts=4)
                 # Augmente légèrement la vitesse des fantômes
+                hardcore.stop()
+                if settings.hardcore_mode:
+                    hardcore.start()
                 ghost_speed_factor *= 1.10
                 # Démarre le nouveau niveau sans réinitialiser le score
                 reset_round(current_rows, reset_score=False)
@@ -341,6 +355,7 @@ def run_game(stdscr) -> None:
             else:
                 running = False
 
+    hardcore.stop()
     pygame.quit()
 
 # Point d'entrée du jeu Pacman
