@@ -65,11 +65,12 @@ def run_game(stdscr) -> None:
     static_levels = [
         os.path.join(root_dir, "assets", "maps", "maplv1.map"),
         os.path.join(root_dir, "assets", "maps", "maplv2.map"),
-        os.path.join(root_dir, "assets", "maps", "maplv3.map"),
+        os.path.join(root_dir, "assets", "maps", "maplv3.map")
     ]
     current_level_index = 0
     in_procedural_mode = False
     ghost_speed_factor = 1.0
+    level_number = 1
 
     # Détermine la carte initiale: priorise les niveaux statiques
     initial_rows = load_map_file(static_levels[current_level_index]) if static_levels else []
@@ -102,10 +103,13 @@ def run_game(stdscr) -> None:
     fov_tiles = max(width_px, height_px) // TILE
     shrink_timer = 0.0
     move_accum = 0.0
+    frightened_timer = 0.0
+    respawn_timers: list[tuple[float, str, float]] = []  # (remaining, color, speed)
+    cage_pos: tuple[int, int] | None = None
 
     # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
     def reset_round(rows: list[str], *, reset_score: bool) -> None:
-        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, respawn_timers, cage_pos
         # Recharge la carte depuis des lignes générées
         game_map = GameMap(rows)
         # Adapter la taille de la fenêtre si la carte change de dimensions
@@ -121,6 +125,8 @@ def run_game(stdscr) -> None:
                     dots[(x, y)] = Pellet(Position(x, y), value=1)
                 elif ch in ('o', 'O'):
                     power_dots[(x, y)] = PowerPellet(Position(x, y))
+                elif ch == 'C':
+                    cage_pos = (x, y)
         # Position initiale
         start = game_map.find_char('P')
         if start is None:
@@ -149,6 +155,8 @@ def run_game(stdscr) -> None:
         fov_tiles = max(width_px, height_px) // TILE
         shrink_timer = 0.0
         move_accum = 0.0
+        frightened_timer = 0.0
+        respawn_timers = []
         # Score: remis à zéro uniquement si demandé (ex: après Game Over)
         if reset_score:
             score = Score()
@@ -211,6 +219,9 @@ def run_game(stdscr) -> None:
                         del power_dots[ppos]
                         # Superpoint: élargit le champ de vision de 5 tuiles
                         fov_tiles += 5
+                        # Active pouvoir: Pacman peut manger les fantômes (10s niveau 1, décroît avec le niveau, min 3s)
+                        duration = max(3.0, 10.0 / max(1, level_number))
+                        frightened_timer = duration
 
                     # Victoire si toutes les pastilles sont mangées
                     if not dots and not power_dots:
@@ -218,10 +229,20 @@ def run_game(stdscr) -> None:
                         break
 
                     # Collision immédiate Pacman <-> fantôme après ce pas
-                    for ghost in ghosts:
+                    eaten_indexes: list[int] = []
+                    for idx, ghost in enumerate(ghosts):
                         if ghost.position.x == pacman.position.x and ghost.position.y == pacman.position.y:
-                            game_over = True
-                            break
+                            if frightened_timer > 0.0:
+                                eaten_indexes.append(idx)
+                            else:
+                                game_over = True
+                                break
+                    if eaten_indexes:
+                        for idx in reversed(eaten_indexes):
+                            g = ghosts.pop(idx)
+                            ghost_accums.pop(idx)
+                            color = g.color if isinstance(g.color, str) else "red"
+                            respawn_timers.append((3.0, color, g.speed))
                     if game_over:
                         break
 
@@ -235,16 +256,50 @@ def run_game(stdscr) -> None:
                         ghost.update(1 / ghost.speed, game_map=game_map)
                         # Collision immédiate après le pas du fantôme
                         if ghost.position.x == pacman.position.x and ghost.position.y == pacman.position.y:
-                            game_over = True
-                            break
+                            if frightened_timer > 0.0:
+                                # Fantôme mangé
+                                ghosts.pop(i)
+                                ghost_accums.pop(i)
+                                color = ghost.color if isinstance(ghost.color, str) else "red"
+                                respawn_timers.append((3.0, color, ghost.speed))
+                                break
+                            else:
+                                game_over = True
+                                break
                     if game_over:
                         break
 
             # Détection de collision Pacman <-> fantôme (même tuile)
-            for ghost in ghosts:
+            for idx, ghost in enumerate(list(ghosts)):
                 if ghost.position.x == pacman.position.x and ghost.position.y == pacman.position.y:
-                    game_over = True
-                    break
+                    if frightened_timer > 0.0:
+                        ghosts.pop(idx)
+                        ghost_accums.pop(idx)
+                        color = ghost.color if isinstance(ghost.color, str) else "red"
+                        respawn_timers.append((3.0, color, ghost.speed))
+                    else:
+                        game_over = True
+                        break
+
+            # Timers pouvoir et respawn
+            if frightened_timer > 0.0:
+                frightened_timer = max(0.0, frightened_timer - dt)
+            if respawn_timers:
+                new_list: list[tuple[float, str, float]] = []
+                for remaining, color, speed in respawn_timers:
+                    remaining -= dt
+                    if remaining <= 0.0:
+                        if cage_pos is None:
+                            cx, cy = (max(0, (game_map.width // 2)), max(0, (game_map.height // 2)))
+                        else:
+                            cx, cy = cage_pos
+                        ghost_speed = max(1.0, speed)
+                        new_ghost = Ghost(Position(x=cx, y=cy), speed=ghost_speed, direction=(0, -1), color=color)
+                        ghosts.append(new_ghost)
+                        ghost_accums.append(0.0)
+                    else:
+                        new_list.append((remaining, color, speed))
+                respawn_timers = new_list
 
         # Rendu
         screen.fill((0, 0, 0))
@@ -337,6 +392,7 @@ def run_game(stdscr) -> None:
                 ghost_speed_factor = 1.0
                 in_procedural_mode = False
                 current_level_index = 0
+                level_number = 1
                 first_rows = load_map_file(static_levels[current_level_index]) if static_levels else []
                 if first_rows:
                     current_rows = first_rows
@@ -361,6 +417,7 @@ def run_game(stdscr) -> None:
                 # Si on a encore des niveaux statiques à jouer, charge le suivant
                 if not in_procedural_mode and current_level_index + 1 < len(static_levels):
                     current_level_index += 1
+                    level_number += 1
                     next_rows = load_map_file(static_levels[current_level_index])
                     if not next_rows:
                         # Si le fichier est manquant, bascule en génération
@@ -382,6 +439,7 @@ def run_game(stdscr) -> None:
                     current_rows = generate_map(width_new, height_new, num_ghosts=num_ghosts)
                     # Augmente légèrement la vitesse des fantômes
                     ghost_speed_factor *= 1.10
+                    level_number += 1
                 # Démarre le nouveau niveau sans réinitialiser le score
                 reset_round(current_rows, reset_score=False)
                 victory = False
