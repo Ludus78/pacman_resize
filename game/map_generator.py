@@ -117,7 +117,7 @@ def _reduce_dead_ends(grid: List[List[str]], rng: random.Random, *, max_passes: 
         if changes == 0:
             break
 
-def _place_entities(grid: List[List[str]], num_ghosts: int, rng: random.Random) -> None:
+def _place_entities(grid: List[List[str]], num_ghosts: int, rng: random.Random, *, cage_center: Tuple[int, int] | None = None) -> None:
     h = len(grid)
     w = len(grid[0]) if h else 0
     floor: List[Tuple[int, int]] = [(x, y) for y in range(h) for x in range(w) if grid[y][x] == ' ']
@@ -128,29 +128,80 @@ def _place_entities(grid: List[List[str]], num_ghosts: int, rng: random.Random) 
     px, py = rng.choice(floor)
     grid[py][px] = 'P'
 
-    # Place ghosts 'G'
-    rng.shuffle(floor)
-    placed = 0
-    for x, y in floor:
-        if (x, y) == (px, py):
-            continue
-        if placed >= num_ghosts:
-            break
-        # Keep some distance from P if possible
-        if abs(x - px) + abs(y - py) < 6:
-            continue
+    # Place ghosts 'G' – privilégie l'intérieur de la cage si présente
+    positions: List[Tuple[int, int]] = []
+    if cage_center is not None:
+        cx, cy = cage_center
+        for y in range(cy - 1, cy + 2):
+            for x in range(cx - 1, cx + 2):
+                if 0 <= y < h and 0 <= x < w and grid[y][x] == ' ':
+                    positions.append((x, y))
+    if not positions:
+        positions = [p for p in floor if p != (px, py)]
+    rng.shuffle(positions)
+    for i in range(min(num_ghosts, len(positions))):
+        x, y = positions[i]
         grid[y][x] = 'G'
-        placed += 1
 
 
-def _place_pellets(grid: List[List[str]], rng: random.Random) -> None:
+def _place_pellets(grid: List[List[str]], rng: random.Random, *, cage_center: Tuple[int, int] | None = None) -> None:
     h = len(grid)
     w = len(grid[0]) if h else 0
     # Regular pellets everywhere else (leave walls and entities intact initially)
     for y in range(h):
         for x in range(w):
             if grid[y][x] == ' ':
+                # Évite les pastilles dans/près de la cage (rayon Manhattan 2)
+                if cage_center is not None and abs(x - cage_center[0]) + abs(y - cage_center[1]) <= 2:
+                    continue
                 grid[y][x] = '.'
+def _break_2x2_pellets(grid: List[List[str]]) -> None:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    changed = True
+    while changed:
+        changed = False
+        for y in range(h - 1):
+            for x in range(w - 1):
+                block = [grid[y][x], grid[y][x + 1], grid[y + 1][x], grid[y + 1][x + 1]]
+                if all(c == '.' for c in block):
+                    grid[y + 1][x + 1] = ' '
+                    changed = True
+                    break
+            if changed:
+                break
+
+def _add_cage(grid: List[List[str]]) -> Tuple[int, int]:
+    """Ajoute une cage 5x5 centrée avec ouverture de 2 blocs en haut et centre 'C'. Retourne (cx, cy)."""
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    cx = w // 2
+    cy = h // 2
+    left = max(1, cx - 2)
+    right = min(w - 2, cx + 2)
+    top = max(1, cy - 2)
+    bottom = min(h - 2, cy + 2)
+    # Nettoie la zone en murs
+    for y in range(top, bottom + 1):
+        for x in range(left, right + 1):
+            grid[y][x] = '#'
+    # Intérieur vide
+    for y in range(top + 1, bottom):
+        for x in range(left + 1, right):
+            grid[y][x] = ' '
+    # Mur périmétrique déjà '#', crée ouverture 2 blocs au haut-centre
+    midx = (left + right) // 2
+    grid[top][midx] = ' '
+    if midx + 1 <= right:
+        grid[top][midx + 1] = ' '
+    # Assure un couloir au-dessus de l'ouverture
+    if top - 1 >= 0:
+        grid[top - 1][midx] = ' '
+        if midx + 1 < w:
+            grid[top - 1][midx + 1] = ' '
+    # Centre de cage
+    grid[cy][cx] = 'C'
+    return (cx, cy)
 
     # Place exactement 4 power pellets 'o'
     def manhattan(a: tuple[int, int], b: tuple[int, int]) -> int:
@@ -199,8 +250,13 @@ def generate_map(width: int, height: int, *, num_ghosts: int = 4, seed: int | No
     _sprinkle_rooms(grid, room_attempts=2, rng=rng)
     # Connecte les cul-de-sacs pour éviter les voies sans issue
     _reduce_dead_ends(grid, rng, max_passes=4)
-    _place_entities(grid, num_ghosts=num_ghosts, rng=rng)
-    _place_pellets(grid, rng=rng)
+    # Ajoute la cage 5x5 avec sortie et centre 'C'
+    cage_center = _add_cage(grid)
+    # Place entités en privilégiant la cage pour les fantômes
+    _place_entities(grid, num_ghosts=num_ghosts, rng=rng, cage_center=cage_center)
+    # Place pastilles en évitant la cage et casse les carrés 2x2
+    _place_pellets(grid, rng=rng, cage_center=cage_center)
+    _break_2x2_pellets(grid)
 
     return ["".join(row) for row in grid]
 
