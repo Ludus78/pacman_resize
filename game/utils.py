@@ -5,7 +5,6 @@ Ce module contient diverses fonctions helper utilisées dans le jeu.
 import os
 import sys
 import pygame
-from typing import Tuple
 
 
 def resource_path(rel_path: str) -> str:
