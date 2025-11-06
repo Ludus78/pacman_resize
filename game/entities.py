@@ -71,8 +71,6 @@ class Pacman(MovableEntity):
         ddx, ddy = self.desired_direction
         cdx, cdy = self.direction
 
-        moved = False
-
         def can_move(d):
             nx = self.position.x + d[0]
             ny = self.position.y + d[1]
@@ -91,7 +89,6 @@ class Pacman(MovableEntity):
                 ny = self.position.y + cdy
                 if self.can_move_to(nx, ny, game_map):
                     self.position = Position(nx, ny)
-                    moved = True
                 else:
                     break
         else:
@@ -132,18 +129,6 @@ class Pacman(MovableEntity):
 
     def get_position(self) -> tuple[int, int]:
         return (self.position.x, self.position.y)
-    # Représente Pacman, contrôlé par le joueur
-    def __init__(self, position: Position, **kwargs) -> None:
-        super().__init__(position, **kwargs)
-        from .score import Score  # import local pour éviter les dépendances circulaires
-        self.score: Score = Score()
-
-    def add_points(self, amount: int) -> None:
-        """Ajoute *amount* points au score du joueur."""
-        self.score.add(amount)
-
-    def reset_score(self) -> None:
-        self.score.reset()
 
 
 class Ghost(MovableEntity):
@@ -152,8 +137,10 @@ class Ghost(MovableEntity):
         # Initialise le fantôme avec une position, une couleur et des paramètres de déplacement
         super().__init__(position, **kwargs)
         self.color: str = color
-        # probabilité de changer de direction
-        self.change_dir_chance: float = 0.2
+        # probabilité de changer de direction (ultra réduite pour fluidité maximale)
+        self.change_dir_chance: float = 0.01
+        # IA: probabilité de poursuivre Pacman au lieu d'errer aléatoirement
+        self.chase_chance: float = 0.95  # 95% de chance de te poursuivre activement
 
     def can_move_to(self, x: int, y: int, game_map) -> bool:
         """
@@ -197,11 +184,49 @@ class Ghost(MovableEntity):
                 res.append(d)
         return res
 
-    def update(self, dt: float, game_map=None) -> None:
+    def _get_best_direction(self, pacman_pos: tuple[int, int], moves: list, is_fleeing: bool = False) -> tuple[int, int] | None:
+        """Calcule la meilleure direction pour poursuivre ou fuir Pacman"""
+        if pacman_pos is None or not moves:
+            return None
+        
+        dx = pacman_pos[0] - self.position.x
+        dy = pacman_pos[1] - self.position.y
+        distance = abs(dx) + abs(dy)  # Distance de Manhattan
+        
+        # Si trop loin, pas de poursuite active
+        if not is_fleeing and distance > 15:
+            return None
+        
+        # Évalue chaque direction possible
+        best_dir = None
+        best_score = -999999 if not is_fleeing else 999999
+        
+        for move in moves:
+            new_x = self.position.x + move[0]
+            new_y = self.position.y + move[1]
+            new_dist = abs(pacman_pos[0] - new_x) + abs(pacman_pos[1] - new_y)
+            
+            if is_fleeing:
+                # En fuite: maximise la distance
+                if new_dist > best_score:
+                    best_score = new_dist
+                    best_dir = move
+            else:
+                # En poursuite: minimise la distance
+                score = -new_dist
+                # Bonus si on continue dans la même direction (fluidité)
+                if move == self.direction:
+                    score += 0.5
+                if score > best_score:
+                    best_score = score
+                    best_dir = move
+        
+        return best_dir
+
+    def update(self, dt: float, game_map=None, pacman_pos: tuple[int, int] | None = None, is_frightened: bool = False) -> None:
         """
-        Déplacement aléatoire respectant la carte : à chaque pas (tuile) on
-        calcule les directions disponibles et on en choisit une au hasard
-        On essaie de conserver la direction courante la plupart du temps
+        Déplacement intelligent : poursuit Pacman en mode normal,
+        fuit en mode frightened (mangeable)
         """
         steps = int(self.speed * dt) if dt > 0 else 0
         if steps <= 0:
@@ -214,11 +239,42 @@ class Ghost(MovableEntity):
                 self.direction = (0, 0)
                 return
 
-            # si la direction courante est possible, on essaye de la continuer
-            if self.direction in moves and random.random() > self.change_dir_chance:
-                choice = self.direction
+            # Évite les demi-tours sauf nécessité
+            opposite = (-self.direction[0], -self.direction[1])
+            preferred_moves = [m for m in moves if m != opposite]
+            if not preferred_moves:
+                preferred_moves = moves
+
+            # Comportement selon le mode
+            if is_frightened:
+                # MODE FUITE: s'éloigne de Pacman
+                if pacman_pos:
+                    flee_dir = self._get_best_direction(pacman_pos, preferred_moves, is_fleeing=True)
+                    if flee_dir:
+                        choice = flee_dir
+                    else:
+                        # Si pas de direction de fuite, va au hasard
+                        choice = random.choice(preferred_moves)
+                else:
+                    choice = random.choice(preferred_moves)
             else:
-                choice = random.choice(moves)
+                # MODE POURSUITE: cherche Pacman
+                if pacman_pos and random.random() < self.chase_chance:
+                    chase_dir = self._get_best_direction(pacman_pos, preferred_moves, is_fleeing=False)
+                    if chase_dir:
+                        choice = chase_dir
+                    else:
+                        # Pacman trop loin, errance intelligente
+                        if self.direction in preferred_moves and random.random() > self.change_dir_chance:
+                            choice = self.direction
+                        else:
+                            choice = random.choice(preferred_moves)
+                else:
+                    # Comportement aléatoire fluide
+                    if self.direction in preferred_moves and random.random() > self.change_dir_chance:
+                        choice = self.direction
+                    else:
+                        choice = random.choice(preferred_moves)
 
             self.direction = choice
             nx = self.position.x + self.direction[0]
