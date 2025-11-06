@@ -7,6 +7,7 @@ from game.score import Score
 from game import settings, hardcore
 import random
 import os
+import math
 from game.map_generator import generate_map
 
 # Calcule les points pour un fantôme mangé selon le combo
@@ -511,6 +512,14 @@ def run_game(stdscr) -> None:
         time_text = f"{mm:02d}:{ss:02d}"
         time_surf = font.render(time_text, True, (255, 200, 200))
         screen.blit(time_surf, (width_px - time_surf.get_width() - 6, 4))
+        # Affiche le timer du boost (secondes restantes) si actif
+        if pacman_boost_timer > 0.0:
+            # Arrondi vers le haut pour éviter d'afficher 0 avant la fin
+            remaining = int(math.ceil(pacman_boost_timer))
+            boost_text = f"Boost: {remaining}s"
+            boost_surf = font.render(boost_text, True, (255, 200, 60))
+            bx = width_px - time_surf.get_width() - 12 - boost_surf.get_width()
+            screen.blit(boost_surf, (bx, 4))
         # Ligne de séparation sous la barre
         pygame.draw.line(screen, (90, 100, 160), (0, 2 + bar_h), (width_px, 2 + bar_h), 2)
 
