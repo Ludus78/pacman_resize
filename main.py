@@ -8,6 +8,15 @@ import random
 import os
 from game.map_generator import generate_map
 
+# Calcule les points pour un fantôme mangé selon le combo
+def get_ghost_points(combo_count: int) -> int:
+    """Retourne les points pour le fantôme selon le nombre de fantômes mangés à la suite"""
+    points_sequence = [10, 20, 40, 80]
+    if combo_count < len(points_sequence):
+        return points_sequence[combo_count]
+    # Si plus de 4 fantômes, reste à 80 points
+    return 80
+
 # Attend l'appui sur Entrée pour relancer la manche.
 # Retourne True si Enter (ou pavé numérique Enter) est pressé,
 # False si Échap ou fermeture de la fenêtre.
@@ -103,17 +112,20 @@ def run_game(stdscr) -> None:
     pacman = Pacman(Position(0, 0), speed=4)
     ghosts: list[Ghost] = []
     ghost_accums: list[float] = []
-    fov_tiles = max(width_px, height_px) // TILE
+    fov_tiles = float(max(width_px, height_px) // TILE)
     shrink_timer = 0.0
     move_accum = 0.0
     frightened_timer = 0.0
+    pacman_base_speed = 4  # Vitesse de base de Pacman
+    pacman_boost_timer = 0.0  # Timer pour le boost de vitesse
+    ghost_combo_counter = 0  # Compteur de combo pour les fantômes mangés à la suite
     respawn_timers: list[tuple[float, str, float]] = []  # (remaining, color, speed)
     cage_pos: tuple[int, int] | None = None
     elapsed_time = 0.0
 
     # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
     def reset_round(rows: list[str], *, reset_score: bool) -> None:
-        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, respawn_timers, cage_pos, elapsed_time
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, pacman_boost_timer, ghost_combo_counter, respawn_timers, cage_pos, elapsed_time
         # Recharge la carte depuis des lignes générées
         game_map = GameMap(rows)
         # Adapter la taille de la fenêtre si la carte change de dimensions
@@ -156,10 +168,12 @@ def run_game(stdscr) -> None:
             ghosts.append(ghost)
         ghost_accums = [0.0 for _ in ghosts]
         # Champ de vision et timers
-        fov_tiles = max(width_px, height_px) // TILE
+        fov_tiles = float(max(width_px, height_px) // TILE)
         shrink_timer = 0.0
         move_accum = 0.0
         frightened_timer = 0.0
+        pacman_boost_timer = 0.0
+        ghost_combo_counter = 0
         respawn_timers = []
         elapsed_time = 0.0
         _ = elapsed_time
@@ -175,8 +189,8 @@ def run_game(stdscr) -> None:
     game_over = False
     victory = False
     while running:
-        # 30 FPS et dt en secondes
-        dt = clock.tick(30) / 1000.0
+        # 60 FPS et dt en secondes pour un rendu plus fluide
+        dt = clock.tick(60) / 1000.0
 
         # Gestion des événements (quit/escape + debug)
         for event in pygame.event.get():
@@ -229,6 +243,11 @@ def run_game(stdscr) -> None:
                         # Active pouvoir: Pacman peut manger les fantômes (10s niveau 1, décroît avec le niveau, min 3s)
                         duration = max(3.0, 10.0 / max(1, level_number))
                         frightened_timer = duration
+                        # Boost de vitesse: Pacman devient 50% plus rapide
+                        pacman.speed = int(pacman_base_speed * 1.5)
+                        pacman_boost_timer = duration
+                        # Réinitialise le compteur de combo
+                        ghost_combo_counter = 0
 
                     # Victoire si toutes les pastilles sont mangées
                     if not dots and not power_dots:
@@ -246,6 +265,10 @@ def run_game(stdscr) -> None:
                                 break
                     if eaten_indexes:
                         for idx in reversed(eaten_indexes):
+                            # Fantôme mangé - ajoute les points selon le combo
+                            ghost_points = get_ghost_points(ghost_combo_counter)
+                            score.add(ghost_points)
+                            ghost_combo_counter += 1
                             g = ghosts.pop(idx)
                             ghost_accums.pop(idx)
                             color = g.color if isinstance(g.color, str) else "red"
@@ -253,33 +276,66 @@ def run_game(stdscr) -> None:
                     if game_over:
                         break
 
+            # Aligne immédiatement la direction au bord de tuile pour un virage visuel instantané
+            ddx, ddy = pacman.desired_direction
+            if (ddx, ddy) != (0, 0):
+                nx = pacman.position.x + ddx
+                ny = pacman.position.y + ddy
+                if pacman.can_move_to(nx, ny, game_map):
+                    cur_dx, cur_dy = pacman.direction
+                    pacman.direction = (ddx, ddy)
+                    # Si changement de direction (notamment opposée), on coupe l'interpolation
+                    if (ddx, ddy) != (cur_dx, cur_dy):
+                        move_accum = 0.0
+
             # Met à jour les fantômes
-            for i, ghost in enumerate(ghosts):
+            pacman_grid_pos = (pacman.position.x, pacman.position.y)
+            is_frightened = (frightened_timer > 0.0)
+            i = 0
+            while i < len(ghosts):
+                ghost = ghosts[i]
                 ghost_accums[i] += ghost.speed * dt
                 gsteps = int(ghost_accums[i])
+                ghost_eaten = False
                 if gsteps > 0:
                     ghost_accums[i] -= gsteps
+                    prev_dir = ghost.direction
                     for _ in range(gsteps):
-                        ghost.update(1 / ghost.speed, game_map=game_map)
+                        ghost.update(1 / ghost.speed, game_map=game_map, pacman_pos=pacman_grid_pos, is_frightened=is_frightened)
                         # Collision immédiate après le pas du fantôme
                         if ghost.position.x == pacman.position.x and ghost.position.y == pacman.position.y:
                             if frightened_timer > 0.0:
-                                # Fantôme mangé
-                                ghosts.pop(i)
-                                ghost_accums.pop(i)
+                                # Fantôme mangé - ajoute les points selon le combo
+                                ghost_points = get_ghost_points(ghost_combo_counter)
+                                score.add(ghost_points)
+                                ghost_combo_counter += 1
                                 color = ghost.color if isinstance(ghost.color, str) else "red"
                                 respawn_timers.append((3.0, color, ghost.speed))
+                                ghosts.pop(i)
+                                ghost_accums.pop(i)
+                                ghost_eaten = True
                                 break
                             else:
                                 game_over = True
                                 break
+                    # Réinitialise l'accumulateur si le fantôme a changé de direction (pour éviter les sauts visuels)
+                    if not ghost_eaten and i < len(ghosts) and prev_dir != (0, 0) and ghost.direction != prev_dir:
+                        # Changement de direction détecté: reset partiel pour transition douce
+                        ghost_accums[i] = min(ghost_accums[i], 0.2)  # Réduit encore plus pour plus de fluidité
                     if game_over:
                         break
+                # N'incrémente l'index que si le fantôme n'a pas été mangé
+                if not ghost_eaten:
+                    i += 1
 
             # Détection de collision Pacman <-> fantôme (même tuile)
             for idx, ghost in enumerate(list(ghosts)):
                 if ghost.position.x == pacman.position.x and ghost.position.y == pacman.position.y:
                     if frightened_timer > 0.0:
+                        # Fantôme mangé - ajoute les points selon le combo
+                        ghost_points = get_ghost_points(ghost_combo_counter)
+                        score.add(ghost_points)
+                        ghost_combo_counter += 1
                         ghosts.pop(idx)
                         ghost_accums.pop(idx)
                         color = ghost.color if isinstance(ghost.color, str) else "red"
@@ -291,6 +347,16 @@ def run_game(stdscr) -> None:
             # Timers pouvoir et respawn
             if frightened_timer > 0.0:
                 frightened_timer = max(0.0, frightened_timer - dt)
+                # Fin du pouvoir: réinitialise le combo
+                if frightened_timer <= 0.0:
+                    ghost_combo_counter = 0
+            
+            # Timer boost de vitesse Pacman
+            if pacman_boost_timer > 0.0:
+                pacman_boost_timer = max(0.0, pacman_boost_timer - dt)
+                # Fin du boost: remet la vitesse normale
+                if pacman_boost_timer <= 0.0:
+                    pacman.speed = pacman_base_speed
             if respawn_timers:
                 new_list: list[tuple[float, str, float]] = []
                 for remaining, color, speed in respawn_timers:
@@ -310,24 +376,57 @@ def run_game(stdscr) -> None:
 
         # Rendu
         screen.fill((0, 0, 0))
+        # Position de Pacman en pixels (monde) avec interpolation sous-tuile
+        px = pacman.position.x * TILE + TILE // 2
+        py = pacman.position.y * TILE + TILE // 2
+        if pacman.direction != (0, 0) and move_accum > 0.0:
+            # Interpolation uniquement si la prochaine tuile est libre
+            npx = pacman.position.x + pacman.direction[0]
+            npy = pacman.position.y + pacman.direction[1]
+            if pacman.can_move_to(npx, npy, game_map):
+                off_x = pacman.direction[0] * int(move_accum * TILE)
+                off_y = pacman.direction[1] * int(move_accum * TILE)
+                px += off_x
+                py += off_y
+        # Calcule la caméra centrée sur Pacman (défilement dynamique)
+        map_w_px = game_map.width * TILE
+        map_h_px = game_map.height * TILE
+        view_w_px = width_px
+        view_h_px = height_px
+        target_sx = view_w_px // 2
+        target_sy = ui_offset + view_h_px // 2
+        cam_x = int(max(0, min(map_w_px - view_w_px, px - target_sx)))
+        cam_y = int(max(0, min(map_h_px - view_h_px, py - (target_sy - ui_offset))))
+
         # Dessine la carte (# = mur bleu, sinon noir)
-        for y, row in enumerate(game_map.rows):
-            for x, ch in enumerate(row):
+        # On ne dessine que les tuiles visibles pour optimiser
+        x0 = max(0, cam_x // TILE)
+        y0 = max(0, cam_y // TILE)
+        x1 = min(game_map.width, (cam_x + view_w_px) // TILE + 1)
+        y1 = min(game_map.height, (cam_y + view_h_px) // TILE + 1)
+        for y in range(y0, y1):
+            row = game_map.rows[y]
+            for x in range(x0, x1):
+                ch = row[x]
                 if ch == '#':
-                    pygame.draw.rect(screen, (0, 0, 200), (x * TILE, y * TILE + ui_offset, TILE, TILE))
+                    sx = x * TILE - cam_x
+                    sy = y * TILE - cam_y + ui_offset
+                    pygame.draw.rect(screen, (0, 0, 200), (sx, sy, TILE, TILE))
         # Dessine les collectibles
         for (cx, cy) in dots.keys():
-            pygame.draw.circle(screen, (230, 230, 230), (cx * TILE + TILE // 2, cy * TILE + TILE // 2 + ui_offset), max(2, TILE // 8))
+            sx = cx * TILE + TILE // 2 - cam_x
+            sy = cy * TILE + TILE // 2 - cam_y + ui_offset
+            pygame.draw.circle(screen, (230, 230, 230), (sx, sy), max(2, TILE // 8))
         for (cx, cy) in power_dots.keys():
-            pygame.draw.circle(screen, (255, 255, 255), (cx * TILE + TILE // 2, cy * TILE + TILE // 2 + ui_offset), max(4, TILE // 4))
+            sx = cx * TILE + TILE // 2 - cam_x
+            sy = cy * TILE + TILE // 2 - cam_y + ui_offset
+            pygame.draw.circle(screen, (255, 255, 255), (sx, sy), max(4, TILE // 4))
 
         # Dessine Pacman
-        px = pacman.position.x * TILE + TILE // 2
-        py = pacman.position.y * TILE + TILE // 2 + ui_offset
-        pygame.draw.circle(screen, (255, 215, 0), (px, py), TILE // 2)
+        pygame.draw.circle(screen, (255, 215, 0), (px - cam_x, py - cam_y + ui_offset), TILE // 2)
 
         # Dessine les fantômes
-        for ghost in ghosts:
+        for i, ghost in enumerate(ghosts):
             # Si pouvoir actif, fantômes en violet
             if frightened_timer > 0.0:
                 col = (170, 80, 255)
@@ -345,21 +444,31 @@ def run_game(stdscr) -> None:
                 elif not isinstance(col, (tuple, list)):
                     col = (200, 30, 30)
             gx = ghost.position.x * TILE + TILE // 2
-            gy = ghost.position.y * TILE + TILE // 2 + ui_offset
-            pygame.draw.circle(screen, col, (gx, gy), TILE // 2)
+            gy = ghost.position.y * TILE + TILE // 2
+            # Interpolation fantôme basée sur son accumulateur dédié
+            if ghost.direction != (0, 0) and 0 <= i < len(ghost_accums) and ghost_accums[i] > 0.0:
+                ngx = ghost.position.x + ghost.direction[0]
+                ngy = ghost.position.y + ghost.direction[1]
+                if ghost.can_move_to(ngx, ngy, game_map):
+                    goff_x = ghost.direction[0] * int(ghost_accums[i] * TILE)
+                    goff_y = ghost.direction[1] * int(ghost_accums[i] * TILE)
+                    gx += goff_x
+                    gy += goff_y
+            pygame.draw.circle(screen, col, (gx - cam_x, gy - cam_y + ui_offset), TILE // 2)
 
-        # Masque de champ de vision: rétrécit d'1 tuile toutes les 5 secondes
+        # Masque de champ de vision: rétrécit en continu (1 tuile toutes les 1.5 secondes - 2x plus rapide)
         if not game_over:
             shrink_timer += dt
-            if shrink_timer >= 3.0:
-                shrink_timer -= 3.0
-                if fov_tiles > 0:
-                    fov_tiles -= 1
+            # Réduction continue jusqu'à un minimum de 5 tuiles
+            min_fov = 5.0
+            if fov_tiles > min_fov:
+                fov_tiles = max(min_fov, fov_tiles - (dt / (1.5 / float(level_number))))
 
         # Applique un overlay sombre avec trou circulaire autour de Pacman
         overlay = pygame.Surface((width_px, height_px + ui_offset), pygame.SRCALPHA)
         overlay.fill((0, 0, 0))
-        pygame.draw.circle(overlay, (0, 0, 0, 0), (px, py), max(0, fov_tiles) * TILE + TILE // 2)
+        radius = int(max(0.0, fov_tiles) * TILE + TILE // 2)
+        pygame.draw.circle(overlay, (0, 0, 0, 0), (px - cam_x, py - cam_y + ui_offset), radius)
         screen.blit(overlay, (0, 0))
 
         # Ligne supérieure (titre) + barre d'interface
