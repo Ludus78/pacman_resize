@@ -1,6 +1,13 @@
 """Gestionnaire de son pour le jeu Pacman."""
 import os
+import sys
 import pygame.mixer
+
+
+# Helper for PyInstaller compatibility
+def resource_path(rel_path: str) -> str:
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, rel_path)
 
 class SoundManager:
     DEFAULT_MUSIC = "Songretrogaming.mp3"  # Musique par défaut
@@ -14,8 +21,9 @@ class SoundManager:
             except Exception:
                 print("Impossible d'initialiser le système audio")
                 return
-        
-        self.sound_dir = os.path.join("assets", "sounds")
+
+        # sound_dir is placed via resource_path so PyInstaller onefile bundles work
+        self.sound_dir = resource_path(os.path.join("assets", "sounds"))
         # Jouer la musique par défaut au démarrage
         self.start_background_music()
 
