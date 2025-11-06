@@ -64,10 +64,16 @@ class CollisionManager:
             )
             state.frightened_timer = duration
             
-            # Boost de vitesse pour Pacman
+            # Boost de vitesse pour Pacman : 1.5x plus rapide que les fantômes (mode attaque)
+            max_ghost_speed = max((ghost.speed for ghost in state.ghosts), default=PACMAN_BASE_SPEED)
+            target_speed = max_ghost_speed * PACMAN_BOOST_MULTIPLIER
+
             if state.pacman_boost_timer <= 0.0:
                 state.pacman_original_speed = state.pacman.speed
-                state.pacman.speed = int(PACMAN_BASE_SPEED * PACMAN_BOOST_MULTIPLIER)
+
+            # Assure la vitesse cible (au moins le boost de base)
+            min_boost_speed = PACMAN_BASE_SPEED * PACMAN_BOOST_MULTIPLIER
+            state.pacman.speed = max(target_speed, min_boost_speed)
             state.pacman_boost_timer = duration
             
             # Réinitialise le compteur de combo

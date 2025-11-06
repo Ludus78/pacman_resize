@@ -17,8 +17,8 @@ MIN_SAFE_SPAWN_DISTANCE = 8  # Distance minimale entre Pacman et les fantômes a
 
 # Gameplay
 PACMAN_BASE_SPEED = 4  # Vitesse de base de Pacman
-PACMAN_BOOST_MULTIPLIER = 1.5  # Multiplicateur de vitesse lors du boost
-GHOST_SPEED_INCREASE = 1.10  # Augmentation de vitesse des fantômes par niveau
+PACMAN_BOOST_MULTIPLIER = 1.75  # Multiplicateur de vitesse lors du boost
+GHOST_SPEED_INCREASE = 1.05  # Augmentation de vitesse des fantômes par niveau
 MIN_FOV = 5.0  # Champ de vision minimum (en tuiles)
 FOV_SHRINK_RATE = 1.8  # Vitesse de rétrécissement du FOV (secondes par tuile)
 FOV_BOOST = 7  # Tuiles ajoutées au FOV lors d'un power pellet
@@ -26,7 +26,7 @@ GHOST_RESPAWN_TIME = 4.0  # Temps de respawn des fantômes (secondes)
 
 # Durées des pouvoirs
 BASE_FRIGHTENED_DURATION = 10.0  # Durée de base du mode frightened (niveau 1)
-MIN_FRIGHTENED_DURATION = 3.0  # Durée minimale du mode frightened
+MIN_FRIGHTENED_DURATION = 5.0  # Durée minimale du mode frightened
 
 # Points
 PELLET_VALUE = 10  # Points pour une pastille normale

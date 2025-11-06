@@ -16,13 +16,20 @@ class LevelManager:
     
     def __init__(self):
         """Initialise le gestionnaire de niveaux."""
-        # Liste des niveaux statiques (chemins absolus)
-        self.static_levels = [
-            resource_path(os.path.join("../assets/maps/maplv1.map")),
-            resource_path(os.path.join("../assets/maps/maplv2.map")),
-            resource_path(os.path.join("../assets/maps/maplv3.map")),
+        # Liste des niveaux statiques (chemins absolus et relatifs pour compatibilité dev/build)
+        static_files = [
+            os.path.join("assets", "maps", "maplv1.map"),
+            os.path.join("assets", "maps", "maplv2.map"),
+            os.path.join("assets", "maps", "maplv3.map"),
         ]
-        
+        self.static_levels = []
+        for path in static_files:
+            dev_abs_path = os.path.abspath(path)
+            # On préfère l'absolu direct s'il existe (dev), sinon PyInstaller/resource_path (dist)
+            if os.path.exists(dev_abs_path):
+                self.static_levels.append(dev_abs_path)
+            else:
+                self.static_levels.append(resource_path(path))
         # État de la progression
         self.current_level_index = 0
         self.level_number = 1
