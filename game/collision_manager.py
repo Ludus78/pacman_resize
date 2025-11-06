@@ -54,8 +54,8 @@ class CollisionManager:
             if settings.hardcore_mode:
                 hardcore.decrease()
             
-            # Élargit le champ de vision
-            state.fov_tiles += FOV_BOOST
+            # Élargit le champ de vision (avec animation)
+            state.fov_target = state.fov_tiles + FOV_BOOST
             
             # Active le pouvoir : durée dépend du niveau
             duration = max(

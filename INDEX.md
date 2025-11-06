@@ -27,11 +27,10 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
    - Améliorations techniques
    - Bugs corrigés
 
-4. **[RESUME_MODIFICATIONS.md](RESUME_MODIFICATIONS.md)** ✅ **CHECKLIST**
-   - Résumé complet des changements
-   - Objectifs atteints
-   - Tests et validation
-   - Conformité aux exigences
+4. **[README.md](README.md)** ✅ **VUE GLOBALE**
+   - Résumé du projet
+   - Installation
+   - Fonctionnalités clés
 
 ## 📋 Documentation Détaillée
 
@@ -42,8 +41,6 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
 | [GUIDE_DEMARRAGE.md](GUIDE_DEMARRAGE.md) | Guide utilisateur complet | Vous voulez jouer |
 | [game/README.md](game/README.md) | Architecture des modules | Vous développez le jeu |
 | [REFACTORING.md](REFACTORING.md) | Vue d'ensemble refactorisation | Vous voulez comprendre les changements |
-| [RESUME_MODIFICATIONS.md](RESUME_MODIFICATIONS.md) | Résumé détaillé | Vous voulez valider les objectifs |
-| [CHANGELOG.md](CHANGELOG.md) | Journal des versions | Vous suivez l'évolution du projet |
 | [README.md](README.md) | Documentation générale | Vue d'ensemble du projet |
 
 ## 🏗️ Structure du Code
@@ -66,9 +63,7 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
 
 ## 🧪 Tests
 
-- **`test_victory.py`** : Tests unitaires du système de victoire
-  - 4 tests couvrant tous les cas
-  - Exécution : `python3 test_victory.py`
+*(Les tests automatisés ont été retirés de cette distribution.)*
 
 ## 📊 Statistiques du Projet
 
@@ -104,9 +99,8 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
 
 ### Déboguer
 
-1. **Lancer les tests** : `python3 test_victory.py`
-2. **Vérifier le linter** : `python3 -m pylint game/*.py`
-3. **Mode debug** : Touche `P` dans le jeu (force victoire)
+1. **Vérifier le linter** : `python3 -m pylint game/*.py`
+2. **Mode debug** : Touche `P` dans le jeu (force victoire)
 
 ## 🔍 Recherche Rapide
 
@@ -119,7 +113,6 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
 | Collisions | [game/collision_manager.py](game/collision_manager.py) |
 | Rendu | [game/renderer.py](game/renderer.py) |
 | Constantes | [game/constants.py](game/constants.py) |
-| Tests | [test_victory.py](test_victory.py) |
 
 ### Par Problème
 
@@ -149,7 +142,6 @@ Bienvenue dans la documentation complète du projet Pacman refactorisé !
 1. [game/game_loop.py](game/game_loop.py) - Boucle principale
 2. [game/renderer.py](game/renderer.py) - Système de rendu
 3. [game/collision_manager.py](game/collision_manager.py) - Logique de collision
-4. [test_victory.py](test_victory.py) - Tests unitaires
 
 ## 📞 Support
 
@@ -165,7 +157,7 @@ R: Éditez [game/constants.py](game/constants.py)
 R: Créez un fichier `.map` dans `assets/maps/`
 
 **Q: Les tests passent-ils ?**  
-R: Oui ! `python3 test_victory.py` → 4/4 ✅
+R: Cette distribution ne contient pas les scripts de tests automatisés.
 
 **Q: Y a-t-il des bugs connus ?**  
 R: Non ! Tous corrigés en v2.0

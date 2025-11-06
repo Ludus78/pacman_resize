@@ -99,6 +99,10 @@ class GameLoop:
                         self.state.dots.clear()
                         self.state.power_dots.clear()
                         self.state.victory = True
+                # Raccourci 'm' : ajoute 101 points
+                elif event.key == pygame.K_m:
+                    if not self.state.game_over and not self.state.victory:
+                        self.state.score.add(101)
         
         return True
     
@@ -125,6 +129,9 @@ class GameLoop:
         
         # Gestion des timers
         self._update_timers(dt)
+        
+        # Animation du champ de vision
+        self._update_fov_animation(dt)
         
         # Rétrécissement du champ de vision
         self._update_fov(dt)
@@ -298,15 +305,33 @@ class GameLoop:
         
         self.state.respawn_timers = new_list
     
-    def _update_fov(self, dt: float) -> None:
-        """Met à jour le champ de vision (rétrécissement).
+    def _update_fov_animation(self, dt: float) -> None:
+        """Anime le champ de vision vers la valeur cible.
         
         Args:
             dt: Delta time
         """
-        if not self.state.game_over and self.state.fov_tiles > MIN_FOV:
+        if abs(self.state.fov_tiles - self.state.fov_target) > 0.01:
+            # Anime progressivement vers la cible
+            diff = self.state.fov_target - self.state.fov_tiles
+            max_change = self.state.fov_animation_speed * dt
+            
+            if abs(diff) <= max_change:
+                # On est proche, on met directement à la cible
+                self.state.fov_tiles = self.state.fov_target
+            else:
+                # On se rapproche progressivement
+                self.state.fov_tiles += max_change if diff > 0 else -max_change
+    
+    def _update_fov(self, dt: float) -> None:
+        """Met à jour le champ de vision (rétrécissement de la cible).
+        
+        Args:
+            dt: Delta time
+        """
+        if not self.state.game_over and self.state.fov_target > MIN_FOV:
             shrink_rate = FOV_SHRINK_RATE / float(self.level_manager.level_number)
-            self.state.fov_tiles = max(MIN_FOV, self.state.fov_tiles - (dt / shrink_rate))
+            self.state.fov_target = max(MIN_FOV, self.state.fov_target - (dt / shrink_rate))
     
     def _handle_game_over(self) -> bool:
         """Gère l'écran de Game Over.

@@ -118,30 +118,68 @@ def _reduce_dead_ends(grid: List[List[str]], rng: random.Random, *, max_passes: 
             break
 
 def _place_entities(grid: List[List[str]], num_ghosts: int, rng: random.Random, *, cage_center: Tuple[int, int] | None = None) -> None:
+    """Place Pacman et les fantômes en garantissant une distance minimale de sécurité.
+    
+    Args:
+        grid: Grille de jeu
+        num_ghosts: Nombre de fantômes à placer
+        rng: Générateur aléatoire
+        cage_center: Centre de la cage pour les fantômes
+    """
     h = len(grid)
     w = len(grid[0]) if h else 0
     floor: List[Tuple[int, int]] = [(x, y) for y in range(h) for x in range(w) if grid[y][x] == ' ']
     if not floor:
         return
 
-    # Place Pacman start 'P'
-    px, py = rng.choice(floor)
-    grid[py][px] = 'P'
+    def manhattan_distance(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> int:
+        """Calcule la distance de Manhattan entre deux positions."""
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
 
-    # Place ghosts 'G' – privilégie l'intérieur de la cage si présente
+    # Place ghosts 'G' d'abord – privilégie l'intérieur de la cage si présente
+    ghost_positions: List[Tuple[int, int]] = []
     positions: List[Tuple[int, int]] = []
+    
     if cage_center is not None:
         cx, cy = cage_center
         for y in range(cy - 1, cy + 2):
             for x in range(cx - 1, cx + 2):
                 if 0 <= y < h and 0 <= x < w and grid[y][x] == ' ':
                     positions.append((x, y))
+    
     if not positions:
-        positions = [p for p in floor if p != (px, py)]
+        positions = floor.copy()
+    
     rng.shuffle(positions)
+    
+    # Place les fantômes
     for i in range(min(num_ghosts, len(positions))):
         x, y = positions[i]
         grid[y][x] = 'G'
+        ghost_positions.append((x, y))
+
+    # Place Pacman dans une zone sûre (distance minimale des fantômes)
+    from game.constants import MIN_SAFE_SPAWN_DISTANCE
+    
+    safe_positions = [
+        pos for pos in floor 
+        if grid[pos[1]][pos[0]] == ' ' and  # Case encore vide
+        all(manhattan_distance(pos, ghost_pos) >= MIN_SAFE_SPAWN_DISTANCE for ghost_pos in ghost_positions)
+    ]
+    
+    if safe_positions:
+        # Choisit une position sûre
+        px, py = rng.choice(safe_positions)
+    else:
+        # Fallback : choisit la position la plus éloignée des fantômes
+        available = [(x, y) for x, y in floor if grid[y][x] == ' ']
+        if available:
+            px, py = max(available, key=lambda pos: min(manhattan_distance(pos, gpos) for gpos in ghost_positions))
+        else:
+            # Dernière chance : n'importe quelle case libre
+            px, py = rng.choice(floor)
+    
+    grid[py][px] = 'P'
 
 
 def _place_pellets(grid: List[List[str]], rng: random.Random, *, cage_center: Tuple[int, int] | None = None) -> None:

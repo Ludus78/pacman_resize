@@ -35,7 +35,6 @@ Pour plus de détails, consultez le **[Guide de Démarrage](GUIDE_DEMARRAGE.md)*
 
 - **[GUIDE_DEMARRAGE.md](GUIDE_DEMARRAGE.md)** - Comment jouer (contrôles, règles, stratégies)
 - **[REFACTORING.md](REFACTORING.md)** - Vue d'ensemble de la refactorisation
-- **[RESUME_MODIFICATIONS.md](RESUME_MODIFICATIONS.md)** - Résumé des modifications
 - **[game/README.md](game/README.md)** - Architecture détaillée des modules
 
 ## ✨ Nouveautés (Version 2.0)
@@ -49,13 +48,15 @@ Le projet a été **entièrement refactorisé** pour une meilleure maintenabilit
 - ✅ **Architecture modulaire** avec séparation des responsabilités
 - ✅ **Bug de victoire corrigé** et validé par tests
 - ✅ **Tests unitaires** ajoutés
-- ✅ **Documentation complète** (4 fichiers markdown)
+- ✅ **Documentation complète** (3 fichiers markdown)
 
 ### 🐛 Corrections
 
 - ✅ **Système de victoire** : Détecte correctement quand tous les points sont mangés
 - ✅ **Performance** : Rendu optimisé (tuiles visibles uniquement)
 - ✅ **Fluidité** : Interpolation sous-tuile améliorée
+- ✅ **Spawn sécurisé** : Pacman spawn toujours à ≥5 blocs des fantômes (Nov 2025)
+- ✅ **Progression claire** : Niveaux 1-3 statiques, 4+ procéduraux avec messages explicites
 
 ## Builder et distribuer le jeu
 
@@ -113,7 +114,6 @@ Pour distribuer le jeu, compressez simplement le dossier `dist/pacman_game/` en 
 ```
 pacman_resize/
 ├── 📄 main.py                      (29 lignes) - Point d'entrée
-├── 📄 test_victory.py              - Tests unitaires
 ├── 📖 GUIDE_DEMARRAGE.md           - Guide utilisateur
 ├── 📖 REFACTORING.md               - Vue d'ensemble
 ├── 📖 RESUME_MODIFICATIONS.md      - Résumé des modifs
@@ -203,7 +203,6 @@ python3 test_victory.py
 ## 🎯 Qualité du Code
 
 - ✅ **Aucune erreur de linter**
-- ✅ **Tests unitaires** qui passent
 - ✅ **Architecture modulaire** avec séparation des responsabilités
 - ✅ **Type hints** pour la clarté du code
 - ✅ **Documentation complète** (docstrings + markdown)

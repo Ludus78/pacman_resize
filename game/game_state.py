@@ -9,7 +9,7 @@ from game.entities import Pacman, Ghost, Pellet, PowerPellet, Position
 from game.map import GameMap
 from game.score import Score
 from game.constants import (
-    TILE, UI_OFFSET, PACMAN_BASE_SPEED, MIN_FOV
+    TILE, UI_OFFSET, PACMAN_BASE_SPEED
 )
 
 
@@ -48,6 +48,8 @@ class GameState:
         
         # Champ de vision
         self.fov_tiles = 0.0
+        self.fov_target = 0.0  # Cible pour l'animation du FOV
+        self.fov_animation_speed = 30.0  # Tuiles par seconde pour l'animation
         
         # Respawn des fantômes (remaining_time, color, speed)
         self.respawn_timers: List[Tuple[float, str, float]] = []
@@ -95,6 +97,7 @@ class GameState:
         
         # Champ de vision initial
         self.fov_tiles = float(max(self.width_px, self.height_px) // TILE)
+        self.fov_target = self.fov_tiles  # Initialise la cible aussi
         
         # Score
         if reset_score:
