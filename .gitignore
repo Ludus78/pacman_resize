@@ -24,3 +24,9 @@ Thumbs.db
 
 # Assets temporaires
 assets/**/*.tmp
+
+# Build et distribution
+build/
+dist/
+*.zip
+*.tar.gz

@@ -18,6 +18,63 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Lancer le jeu en mode développement
+
+```bash
+python main.py
+```
+
+## Builder et distribuer le jeu
+
+### Prérequis pour le build
+```bash
+pip install pyinstaller
+```
+
+### Builder sur Linux
+```bash
+# Nettoyer les anciens builds
+rm -rf build/ dist/
+
+# Créer l'exécutable
+pyinstaller pacman_game.spec --clean -y
+
+# L'exécutable se trouve dans dist/pacman_game/
+./dist/pacman_game/pacman_game
+```
+
+### Builder sur Windows
+```bash
+# Nettoyer les anciens builds
+rmdir /S /Q build dist
+
+# Créer l'exécutable
+pyinstaller pacman_game.spec --clean -y
+
+# L'exécutable se trouve dans dist\pacman_game\
+dist\pacman_game\pacman_game.exe
+```
+
+### Builder sur macOS
+```bash
+# Nettoyer les anciens builds
+rm -rf build/ dist/
+
+# Créer l'exécutable
+pyinstaller pacman_game.spec --clean -y
+
+# L'exécutable se trouve dans dist/pacman_game/
+./dist/pacman_game/pacman_game
+```
+
+### Distribution
+Le dossier `dist/pacman_game/` contient tout le nécessaire pour exécuter le jeu :
+- L'exécutable principal (`pacman_game` ou `pacman_game.exe`)
+- Le dossier `_internal/` avec toutes les dépendances (Python, pygame, etc.)
+- Les assets du jeu (cartes, sons, etc.)
+
+Pour distribuer le jeu, compressez simplement le dossier `dist/pacman_game/` en ZIP et partagez-le. Les utilisateurs n'auront pas besoin d'installer Python ou les dépendances.
+
 ## Structure de projet recommandée
 
 ```
