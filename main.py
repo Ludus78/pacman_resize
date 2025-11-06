@@ -138,7 +138,7 @@ def run_game(stdscr) -> None:
         # Recharge la carte depuis des lignes générées
         game_map = GameMap(rows)
         # Adapter la taille de la f
-enêtre si la carte change de dimensions
+        # fenêtre si la carte change de dimensions
         width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
         height_px = len(game_map.rows) * TILE
         screen = pygame.display.set_mode((width_px, height_px + ui_offset))
@@ -261,11 +261,12 @@ enêtre si la carte change de dimensions
                         duration = max(3.0, 10.0 / max(1, level_number))
                         frightened_timer = duration
 
-                        # Boost de vitesse : Pacman devient 50% plus rapide pendant 5s
+                        # Boost de vitesse : Pacman devient 50% plus rapide pendant la même durée
+                        # que la capacité à manger les fantômes (proportionnel au niveau)
                         if pacman_boost_timer <= 0.0:
                             pacman_original_speed = pacman.speed
                             pacman.speed = int(pacman_base_speed * 1.5)
-                        pacman_boost_timer = 5.0
+                        pacman_boost_timer = duration
 
                         # Réinitialise le compteur de combo
                         ghost_combo_counter = 0
@@ -368,12 +369,6 @@ enêtre si la carte change de dimensions
                 if frightened_timer <= 0.0:
                     ghost_combo_counter = 0
             
-            # Timer boost de vitesse Pacman
-            if pacman_boost_timer > 0.0:
-                pacman_boost_timer = max(0.0, pacman_boost_timer - dt)
-                # Fin du boost: remet la vitesse normale
-                if pacman_boost_timer <= 0.0:
-                    pacman.speed = pacman_base_speed
             if respawn_timers:
                 new_list: list[tuple[float, str, float]] = []
                 for remaining, color, speed in respawn_timers:
