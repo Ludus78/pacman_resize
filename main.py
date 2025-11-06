@@ -7,6 +7,7 @@ from game.score import Score
 from game import settings, hardcore
 import random
 import os
+import math
 from game.map_generator import generate_map
 
 # Helper for PyInstaller: return absolute path to resource whether running
@@ -133,14 +134,17 @@ def run_game(stdscr) -> None:
     ghost_combo_counter = 0  # Compteur de combo pour les fantômes mangés à la suite
     respawn_timers: list[tuple[float, str, float]] = []  # (remaining, color, speed)
     cage_pos: tuple[int, int] | None = None
+    pacman_boost_timer: float = 0.0
+    pacman_original_speed: float | None = None
     elapsed_time = 0.0
 
     # Helper interne pour (re)créer une manche (niveau) sans relancer le jeu complet
     def reset_round(rows: list[str], *, reset_score: bool) -> None:
-        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, pacman_boost_timer, ghost_combo_counter, respawn_timers, cage_pos, elapsed_time
+        nonlocal game_map, dots, power_dots, pacman, ghosts, ghost_accums, fov_tiles, shrink_timer, move_accum, score, width_px, height_px, screen, frightened_timer, respawn_timers, cage_pos, pacman_boost_timer, pacman_original_speed, elapsed_time, ghost_combo_counter
         # Recharge la carte depuis des lignes générées
         game_map = GameMap(rows)
-        # Adapter la taille de la fenêtre si la carte change de dimensions
+        # Adapter la taille de la f
+        # fenêtre si la carte change de dimensions
         width_px = max(len(r) for r in game_map.rows) * TILE if game_map.rows else 28 * TILE
         height_px = len(game_map.rows) * TILE
         screen = pygame.display.set_mode((width_px, height_px + ui_offset))
@@ -164,7 +168,10 @@ def run_game(stdscr) -> None:
         else:
             start_pos = start
             game_map.clear_char('P')
-        pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
+            pacman = Pacman(Position(x=start_pos[0], y=start_pos[1]), speed=4)
+            # réinitialise le timer de boost quand on (re)créé la manche
+            pacman_boost_timer = 0.0
+            pacman_original_speed = None
         # Fantômes
         ghosts = []
         colors_local = ["red", "blue", "pink", "orange"]
@@ -259,16 +266,17 @@ def run_game(stdscr) -> None:
                         # Active pouvoir: Pacman peut manger les fantômes (10s niveau 1, décroît avec le niveau, min 3s)
                         duration = max(3.0, 10.0 / max(1, level_number))
                         frightened_timer = duration
-                        # Boost de vitesse: Pacman devient 50% plus rapide
-                        pacman.speed = int(pacman_base_speed * 1.5)
+
+                        # Boost de vitesse : Pacman devient 50% plus rapide pendant la même durée
+                        # que la capacité à manger les fantômes (proportionnel au niveau)
+                        if pacman_boost_timer <= 0.0:
+                            pacman_original_speed = pacman.speed
+                            pacman.speed = int(pacman_base_speed * 1.5)
                         pacman_boost_timer = duration
+
                         # Réinitialise le compteur de combo
                         ghost_combo_counter = 0
 
-                    # Victoire si toutes les pastilles sont mangées
-                    if not dots and not power_dots:
-                        victory = True
-                        break
 
                     # Collision immédiate Pacman <-> fantôme après ce pas
                     eaten_indexes: list[int] = []
@@ -367,12 +375,6 @@ def run_game(stdscr) -> None:
                 if frightened_timer <= 0.0:
                     ghost_combo_counter = 0
             
-            # Timer boost de vitesse Pacman
-            if pacman_boost_timer > 0.0:
-                pacman_boost_timer = max(0.0, pacman_boost_timer - dt)
-                # Fin du boost: remet la vitesse normale
-                if pacman_boost_timer <= 0.0:
-                    pacman.speed = pacman_base_speed
             if respawn_timers:
                 new_list: list[tuple[float, str, float]] = []
                 for remaining, color, speed in respawn_timers:
@@ -389,6 +391,13 @@ def run_game(stdscr) -> None:
                     else:
                         new_list.append((remaining, color, speed))
                 respawn_timers = new_list
+
+            # Timer du boost de vitesse, restaure la vitesse quand fini
+            if pacman_boost_timer > 0.0:
+                pacman_boost_timer = max(0.0, pacman_boost_timer - dt)
+                if pacman_boost_timer == 0.0 and pacman_original_speed is not None:
+                    pacman.speed = pacman_original_speed
+                    pacman_original_speed = None
 
         # Rendu
         screen.fill((0, 0, 0))
@@ -508,6 +517,14 @@ def run_game(stdscr) -> None:
         time_text = f"{mm:02d}:{ss:02d}"
         time_surf = font.render(time_text, True, (255, 200, 200))
         screen.blit(time_surf, (width_px - time_surf.get_width() - 6, 4))
+        # Affiche le timer du boost (secondes restantes) si actif
+        if pacman_boost_timer > 0.0:
+            # Arrondi vers le haut pour éviter d'afficher 0 avant la fin
+            remaining = int(math.ceil(pacman_boost_timer))
+            boost_text = f"Boost: {remaining}s"
+            boost_surf = font.render(boost_text, True, (255, 200, 60))
+            bx = width_px - time_surf.get_width() - 12 - boost_surf.get_width()
+            screen.blit(boost_surf, (bx, 4))
         # Ligne de séparation sous la barre
         pygame.draw.line(screen, (90, 100, 160), (0, 2 + bar_h), (width_px, 2 + bar_h), 2)
 
