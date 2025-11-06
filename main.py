@@ -8,6 +8,13 @@ import random
 import os
 from game.map_generator import generate_map
 
+# Helper for PyInstaller: return absolute path to resource whether running
+# from source or from a PyInstaller onefile bundle (uses _MEIPASS when present)
+import sys
+def resource_path(rel_path: str) -> str:
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, rel_path)
+
 # Attend l'appui sur Entrée pour relancer la manche.
 # Retourne True si Enter (ou pavé numérique Enter) est pressé,
 # False si Échap ou fermeture de la fenêtre.
@@ -61,11 +68,10 @@ def run_game(stdscr) -> None:
             return []
 
     # Liste des niveaux statiques (absolus, basés sur ce fichier)
-    root_dir = os.path.dirname(os.path.abspath(__file__))
     static_levels = [
-        os.path.join(root_dir, "assets", "maps", "maplv1.map"),
-        os.path.join(root_dir, "assets", "maps", "maplv2.map"),
-        os.path.join(root_dir, "assets", "maps", "maplv3.map")
+        resource_path(os.path.join("assets", "maps", "maplv1.map")),
+        resource_path(os.path.join("assets", "maps", "maplv2.map")),
+        resource_path(os.path.join("assets", "maps", "maplv3.map")),
     ]
     current_level_index = 0
     in_procedural_mode = False
