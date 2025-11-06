@@ -4,6 +4,7 @@ import pygame  # type: ignore
 from game.map import GameMap
 from game.entities import Position, Pacman, Ghost, Pellet, PowerPellet
 from game.score import Score
+from game import settings, hardcore
 import random
 import os
 from game.map_generator import generate_map
@@ -80,6 +81,12 @@ def run_game(stdscr) -> None:
         # Fallback si fichiers manquants
         in_procedural_mode = True
         current_rows = generate_map(base_w, base_h, num_ghosts=num_ghosts)
+
+    # Active le mode hardcore si nécessaire
+    if settings.hardcore_mode:
+        hardcore.start()
+    else:
+        hardcore.stop()
 
     # Charge la carte et prépare les collisions + fenêtre
     game_map = GameMap(current_rows)
@@ -221,9 +228,13 @@ def run_game(stdscr) -> None:
                     if ppos in dots:
                         score.add(dots[ppos].value)
                         del dots[ppos]
+                        if settings.hardcore_mode:
+                            hardcore.decrease()
                     elif ppos in power_dots:
                         score.add(power_dots[ppos].value)
                         del power_dots[ppos]
+                        if settings.hardcore_mode:
+                            hardcore.decrease()
                         # Superpoint: élargit le champ de vision de 5 tuiles
                         fov_tiles += 5
                         # Active pouvoir: Pacman peut manger les fantômes (10s niveau 1, décroît avec le niveau, min 3s)
@@ -463,14 +474,20 @@ def run_game(stdscr) -> None:
                 else:
                     # Procédural (après les 3 cartes): génère un nouveau niveau
                     in_procedural_mode = True
+                    # Génère une nouvelle carte (peut varier légèrement en taille)
+                    # Variation légère de dimensions pour la variété
                     jitter_w = random.choice([-2, 0, 2])
                     jitter_h = random.choice([-2, 0, 2])
                     width_new = max(21, base_w + jitter_w)
                     height_new = max(15, base_h + jitter_h)
-                    current_rows = generate_map(width_new, height_new, num_ghosts=num_ghosts)
+                    current_rows = generate_map(width_new, height_new, num_ghosts=4)
                     # Augmente légèrement la vitesse des fantômes
+                    hardcore.stop()
+                    if settings.hardcore_mode:
+                        hardcore.start()
                     ghost_speed_factor *= 1.10
                     level_number += 1
+
                 # Démarre le nouveau niveau sans réinitialiser le score
                 reset_round(current_rows, reset_score=False)
                 victory = False
@@ -479,6 +496,7 @@ def run_game(stdscr) -> None:
             else:
                 running = False
 
+    hardcore.stop()
     pygame.quit()
 
 # Point d'entrée du jeu Pacman
