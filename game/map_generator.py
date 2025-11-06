@@ -203,15 +203,20 @@ def _add_cage(grid: List[List[str]]) -> Tuple[int, int]:
     grid[cy][cx] = 'C'
     return (cx, cy)
 
-    # Place exactement 4 power pellets 'o'
-    def manhattan(a: tuple[int, int], b: tuple[int, int]) -> int:
+
+def _place_power_pellets(grid: List[List[str]], rng: random.Random) -> None:
+    """Place exactement 4 power pellets 'o' sur la grille."""
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    
+    def manhattan(a: Tuple[int, int], b: Tuple[int, int]) -> int:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     candidates_border = [(x, y) for y in range(h) for x in range(w)
                          if grid[y][x] == '.' and (x < 3 or y < 3 or x > w - 4 or y > h - 4)]
     rng.shuffle(candidates_border)
 
-    placed_positions: list[tuple[int, int]] = []
+    placed_positions: List[Tuple[int, int]] = []
     # Essayer d'abord les bords avec écart minimal
     for x, y in candidates_border:
         if len(placed_positions) >= 4:
@@ -257,6 +262,8 @@ def generate_map(width: int, height: int, *, num_ghosts: int = 4, seed: int | No
     # Place pastilles en évitant la cage et casse les carrés 2x2
     _place_pellets(grid, rng=rng, cage_center=cage_center)
     _break_2x2_pellets(grid)
+    # Place les 4 power pellets
+    _place_power_pellets(grid, rng)
 
     return ["".join(row) for row in grid]
 
