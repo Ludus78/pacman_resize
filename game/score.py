@@ -5,11 +5,11 @@ réutilisée aussi bien par le joueur que par d'éventuels fantômes ou autres
 composants du jeu.
 """
 from __future__ import annotations
+from game.constants import MAX_SCORE
 
 
 class Score:
     """Représente un compteur de score simple (non négatif)."""
-
     def __init__(self) -> None:
         # Initialise le score à zéro.
         self._value: int = 0
@@ -23,7 +23,7 @@ class Score:
         # Ajoute un certain nombre de points au score.
         if amount < 0:
             raise ValueError("Le nombre de points ajouté doit être positif.")
-        self._value += amount
+        self._value = min(self._value + amount, MAX_SCORE)
 
     def reset(self) -> None:
         # Remet le score à zéro.
