@@ -9,7 +9,7 @@ from game.entities import Pacman, Ghost, Pellet, PowerPellet, Position
 from game.map import GameMap
 from game.score import Score
 from game.constants import (
-    TILE, UI_OFFSET, PACMAN_BASE_SPEED
+    TILE, UI_OFFSET, RENDER_MARGIN, PACMAN_BASE_SPEED
 )
 
 
@@ -30,7 +30,8 @@ class GameState:
         self.screen: Optional[pygame.Surface] = existing_screen
         self.use_existing_screen = existing_screen is not None
         self.render_surface: Optional[pygame.Surface] = None
-        self.render_scale: float = 1.0
+        self.render_scale_x: float = 1.0
+        self.render_scale_y: float = 1.0
         self.render_offset: Tuple[int, int] = (0, 0)
         
         # Carte et entités
@@ -91,13 +92,14 @@ class GameState:
         if not self.use_existing_screen:
             self.screen = pygame.display.set_mode((0, 0), pygame.APPACTIVE)
 
-        # Surface de rendu de base (non mise à l'échelle)
-        surface_size = (self.width_px, self.height_px + UI_OFFSET)
+        # Surface de rendu de base avec marges (non mise à l'échelle)
+        surface_size = (self.width_px + RENDER_MARGIN * 2, self.height_px + UI_OFFSET + RENDER_MARGIN * 2)
         if (self.render_surface is None or
                 self.render_surface.get_size() != surface_size):
             self.render_surface = pygame.Surface(surface_size).convert_alpha()
         self.render_surface.fill((0, 0, 0))
-        self.render_scale = 1.0
+        self.render_scale_x = 1.0
+        self.render_scale_y = 1.0
         self.render_offset = (0, 0)
         
         # Recrée les collectibles
@@ -212,12 +214,13 @@ class GameState:
         Returns:
             Rectangle converti dans les coordonnées de l'écran
         """
-        scale = self.render_scale
+        scale_x = self.render_scale_x
+        scale_y = self.render_scale_y
         offset_x, offset_y = self.render_offset
         new_rect = rect.copy()
-        new_rect.x = int(rect.x * scale + offset_x)
-        new_rect.y = int(rect.y * scale + offset_y)
-        new_rect.width = int(rect.width * scale)
-        new_rect.height = int(rect.height * scale)
+        new_rect.x = int(rect.x * scale_x + offset_x)
+        new_rect.y = int(rect.y * scale_y + offset_y)
+        new_rect.width = int(rect.width * scale_x)
+        new_rect.height = int(rect.height * scale_y)
         return new_rect
 

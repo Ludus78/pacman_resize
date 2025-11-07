@@ -6,7 +6,7 @@ import pygame
 import math
 from typing import TYPE_CHECKING
 from game.constants import (
-    TILE, UI_OFFSET, COLOR_BLACK, COLOR_WHITE, COLOR_PACMAN,
+    TILE, UI_OFFSET, RENDER_MARGIN, COLOR_BLACK, COLOR_WHITE, COLOR_PACMAN,
     COLOR_PELLET, COLOR_POWER_PELLET, COLOR_WALL, COLOR_FRIGHTENED_GHOST,
     COLOR_UI_BAR, COLOR_UI_LINE, COLOR_UI_SEPARATOR, GHOST_COLORS
 )
@@ -38,13 +38,19 @@ class Renderer:
             return
 
         render_surface = state.render_surface
-        if render_surface is None or render_surface.get_size() != (state.width_px, state.height_px + UI_OFFSET):
-            render_surface = pygame.Surface((state.width_px, state.height_px + UI_OFFSET)).convert_alpha()
+        expected_size = (state.width_px + RENDER_MARGIN * 2, state.height_px + UI_OFFSET + RENDER_MARGIN * 2)
+        if render_surface is None or render_surface.get_size() != expected_size:
+            render_surface = pygame.Surface(expected_size).convert_alpha()
             state.render_surface = render_surface
 
         # Dessine sur la surface de base
         original_screen = state.screen
-        state.screen = render_surface
+        
+        # Crée une sous-surface décalée pour dessiner avec la marge
+        render_with_margin = render_surface.subsurface(
+            pygame.Rect(RENDER_MARGIN, RENDER_MARGIN, state.width_px, state.height_px + UI_OFFSET)
+        )
+        state.screen = render_with_margin
 
         render_surface.fill(COLOR_BLACK)
         
@@ -70,16 +76,19 @@ class Renderer:
         if state.game_over:
             self._draw_game_over(state)
         elif state.victory:
-            self._draw_victory(state)
+            self._draw_victory_banner(state)
         
         # Restaure l'écran cible
         state.screen = original_screen
 
-        # Mise à l'échelle pour remplir l'écran
+        # Mise à l'échelle proportionnelle (letterboxing)
         target_screen.fill(COLOR_BLACK)
         render_width, render_height = render_surface.get_size()
         screen_width = target_screen.get_width()
         screen_height = target_screen.get_height()
+
+        if render_width == 0 or render_height == 0:
+            return
 
         scale = min(screen_width / render_width, screen_height / render_height)
         scaled_width = max(1, int(render_width * scale))
@@ -87,14 +96,15 @@ class Renderer:
         offset_x = (screen_width - scaled_width) // 2
         offset_y = (screen_height - scaled_height) // 2
 
-        state.render_scale = scale
-        state.render_offset = (offset_x, offset_y)
-
         if scale != 1.0:
             scaled_surface = pygame.transform.smoothscale(render_surface, (scaled_width, scaled_height))
             target_screen.blit(scaled_surface, (offset_x, offset_y))
         else:
             target_screen.blit(render_surface, (offset_x, offset_y))
+
+        state.render_scale_x = scale
+        state.render_scale_y = scale
+        state.render_offset = (offset_x, offset_y)
 
         # Met à jour l'affichage
         pygame.display.flip()
@@ -374,37 +384,27 @@ class Renderer:
         state.screen.blit(title_surf, title_rect)
         state.screen.blit(score_surf, score_rect)
     
-    def _draw_victory(self, state: 'GameState') -> pygame.Rect:
-        """Dessine l'écran de victoire avec le bouton.
+    def _draw_victory_banner(self, state: 'GameState') -> None:
+        """Affiche un bandeau de victoire discret.
         
         Args:
             state: État du jeu
-            
-        Returns:
-            Rectangle du bouton "Niveau suivant"
         """
-        title_surf = self.title_font.render("VICTOIRE", True, (80, 220, 80))
+        banner_height = 140
+        y_top = UI_OFFSET + state.height_px // 2 - banner_height // 2
+        if y_top < UI_OFFSET:
+            y_top = UI_OFFSET
+
+        banner = pygame.Surface((state.width_px, banner_height), pygame.SRCALPHA)
+        banner.fill((0, 0, 0, 180))
+        state.screen.blit(banner, (0, y_top))
+
+        center_x = state.width_px // 2
+        title_surf = self.title_font.render("VICTOIRE !", True, (80, 220, 120))
         score_surf = self.score_big_font.render(f"Score: {state.score}", True, COLOR_WHITE)
-        
-        title_rect = title_surf.get_rect(
-            center=(state.width_px // 2, state.height_px // 2 + UI_OFFSET // 2 - 40)
-        )
-        score_rect = score_surf.get_rect(
-            center=(state.width_px // 2, state.height_px // 2 + UI_OFFSET // 2)
-        )
-        
-        state.screen.blit(title_surf, title_rect)
-        state.screen.blit(score_surf, score_rect)
-        
-        # Bouton "Niveau suivant"
-        btn_w, btn_h = 220, 48
-        btn_rect = pygame.Rect(0, 0, btn_w, btn_h)
-        btn_rect.center = (state.width_px // 2, state.height_px // 2 + UI_OFFSET // 2 + 60)
-        
-        pygame.draw.rect(state.screen, (40, 140, 255), btn_rect, border_radius=8)
-        btn_text = self.font.render("Niveau suivant (Entrée)", True, COLOR_WHITE)
-        btn_text_rect = btn_text.get_rect(center=btn_rect.center)
-        state.screen.blit(btn_text, btn_text_rect)
-        
-        return btn_rect
+        info_surf = self.font.render("Appuyez sur Entrée pour continuer", True, COLOR_WHITE)
+
+        state.screen.blit(title_surf, (center_x - title_surf.get_width() // 2, y_top + 18))
+        state.screen.blit(score_surf, (center_x - score_surf.get_width() // 2, y_top + 18 + title_surf.get_height() + 10))
+        state.screen.blit(info_surf, (center_x - info_surf.get_width() // 2, y_top + banner_height - info_surf.get_height() - 16))
 

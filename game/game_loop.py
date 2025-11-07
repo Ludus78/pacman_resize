@@ -9,7 +9,7 @@ from game.level_manager import LevelManager
 from game.renderer import Renderer
 from game.collision_manager import CollisionManager
 from game.entities import Position, Ghost
-from game.utils import wait_for_enter, wait_for_button_or_enter
+from game.utils import wait_for_enter
 from game import settings, hardcore
 from game.constants import (
     TILE, FPS, MIN_FOV, FOV_SHRINK_RATE
@@ -399,12 +399,9 @@ class GameLoop:
             self.level1_completion_time = self.state.elapsed_time - self.level1_start_time
             self.level1_completed = True
         
-        # Récupère le rectangle du bouton depuis le renderer
-        btn_rect = self.renderer._draw_victory(self.state)
         pygame.display.flip()
-        screen_rect = self.state.to_screen_rect(btn_rect)
-        
-        if wait_for_button_or_enter(self.state.screen, self.clock, screen_rect):
+
+        if wait_for_enter(self.state.screen, self.clock):
             # Charge le niveau suivant
             next_rows = self.level_manager.get_next_map()
             

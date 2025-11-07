@@ -8,6 +8,7 @@ pour faciliter la configuration et la maintenance.
 TILE = 16  # Taille d'une tuile en pixels
 FPS = 60  # Images par seconde
 UI_OFFSET = 28  # Espace réservé pour l'interface en haut
+RENDER_MARGIN = 30  # Marge autour du rendu pour éviter les coupures
 
 # Niveaux statiques
 BASE_WIDTH = 28  # Largeur de base des cartes générées

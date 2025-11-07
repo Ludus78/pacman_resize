@@ -80,7 +80,14 @@ class GraphicalMenu:
             Liste de boutons
         """
         buttons = []
-        button_width = 400
+        padding = 80
+        max_label_width = 0
+        for label in labels:
+            rendered = self.font_medium.render(label, True, (0, 0, 0))
+            if rendered.get_width() > max_label_width:
+                max_label_width = rendered.get_width()
+        button_width = max(400, max_label_width + padding)
+        button_width = min(button_width, self.screen_width - 120)
         button_height = 60
         
         for i, label in enumerate(labels):
