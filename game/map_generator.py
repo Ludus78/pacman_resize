@@ -69,12 +69,78 @@ def _open_neighbors_count(grid: List[List[str]], x: int, y: int) -> int:
     return cnt
 
 
-def _reduce_dead_ends(grid: List[List[str]], rng: random.Random, *, max_passes: int = 3) -> None:
+def _flood_fill(grid: List[List[str]], start_x: int, start_y: int, visited: set[Tuple[int, int]]) -> None:
+    """Utilise un flood fill pour marquer toutes les cases accessibles depuis un point de départ."""
+    h = len(grid)
+    w = len(grid[0])
+    stack = [(start_x, start_y)]
+    
+    while stack:
+        x, y = stack.pop()
+        if (x, y) in visited or grid[y][x] == '#':
+            continue
+        visited.add((x, y))
+        
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and grid[ny][nx] != '#' and (nx, ny) not in visited:
+                stack.append((nx, ny))
+
+def _find_disconnected_regions(grid: List[List[str]]) -> List[Tuple[int, int]]:
+    """Trouve les régions déconnectées et retourne un point de chaque région."""
+    h = len(grid)
+    w = len(grid[0])
+    visited = set()
+    regions = []
+
+    # Trouve le premier point non-mur comme point de départ
+    start = None
+    for y in range(h):
+        for x in range(w):
+            if grid[y][x] != '#':
+                start = (x, y)
+                break
+        if start:
+            break
+    
+    if not start:
+        return []
+
+    # Premier flood fill pour marquer la région principale
+    _flood_fill(grid, start[0], start[1], visited)
+
+    # Cherche d'autres régions non connectées
+    for y in range(h):
+        for x in range(w):
+            if grid[y][x] != '#' and (x, y) not in visited:
+                regions.append((x, y))
+                _flood_fill(grid, x, y, visited)
+
+    return regions
+
+def _count_wall_neighbors(grid: List[List[str]], x: int, y: int) -> int:
+    """Compte le nombre de murs autour d'une case."""
+    count = 0
+    for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+        nx, ny = x + dx, y + dy
+        if grid[ny][nx] == '#':
+            count += 1
+    return count
+
+def _is_corridor(grid: List[List[str]], x: int, y: int) -> bool:
+    """Vérifie si une case fait partie d'un corridor (2 murs opposés)."""
+    if grid[y][x] == '#':
+        return False
+    h_walls = (grid[y][x-1] == '#' and grid[y][x+1] == '#')
+    v_walls = (grid[y-1][x] == '#' and grid[y+1][x] == '#')
+    return h_walls or v_walls
+
+def _reduce_dead_ends(grid: List[List[str]], rng: random.Random, *, max_passes: int = 6) -> None:
     """
-    Évite les voies sans issue en connectant les cul-de-sacs:
-    - Pour chaque case ouverte avec un seul voisin ouvert, on ouvre une paroi adjacente
-      supplémentaire afin d'obtenir au moins deux sorties.
-    - On répète quelques passes pour propager l'effet et réduire fortement les cul-de-sacs.
+    Améliore la connectivité et élimine les impasses:
+    - Détecte et ouvre les cul-de-sacs
+    - Crée des connexions alternatives pour les corridors
+    - Assure des chemins multiples
     """
     h = len(grid)
     if h == 0:
@@ -83,37 +149,101 @@ def _reduce_dead_ends(grid: List[List[str]], rng: random.Random, *, max_passes: 
 
     for _ in range(max_passes):
         changes = 0
-        # Liste des dead-ends actuels
-        dead_ends: List[Tuple[int, int]] = []
-        for y in range(1, h - 1):
-            for x in range(1, w - 1):
+        
+        # 1. Détection améliorée des impasses
+        dead_ends = []
+        corridors = []
+        
+        for y in range(1, h-1):
+            for x in range(1, w-1):
                 if grid[y][x] != '#':
-                    if _open_neighbors_count(grid, x, y) == 1:
+                    open_count = _open_neighbors_count(grid, x, y)
+                    wall_count = _count_wall_neighbors(grid, x, y)
+                    
+                    # Détecte les cul-de-sacs
+                    if open_count == 1:
                         dead_ends.append((x, y))
-
+                    # Détecte les corridors isolés
+                    elif open_count == 2 and _is_corridor(grid, x, y):
+                        corridors.append((x, y))
+        
+        # 2. Traitement des cul-de-sacs
         rng.shuffle(dead_ends)
         for x, y in dead_ends:
             if _open_neighbors_count(grid, x, y) != 1:
                 continue
-            # Choisir une paroi à ouvrir qui n'est pas déjà le seul voisin ouvert
+            
+            # Ouvre au moins deux nouvelles directions
             neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
             rng.shuffle(neighbors)
-            # Identifier la direction du seul voisin ouvert pour l'éviter si possible
-            open_dir = None
+            
+            # Trouve la direction ouverte existante
+            open_dir = next((dir for dir in neighbors 
+                           if grid[y + dir[1]][x + dir[0]] != '#'), None)
+            
+            # Compte les nouvelles ouvertures créées
+            new_openings = 0
             for dx, dy in neighbors:
-                if grid[y + dy][x + dx] != '#':
-                    open_dir = (dx, dy)
-                    break
-
-            for dx, dy in neighbors:
-                if open_dir is not None and (dx, dy) == open_dir:
-                    continue
+                if (dx, dy) != open_dir:
+                    nx, ny = x + dx, y + dy
+                    if 0 < nx < w-1 and 0 < ny < h-1 and grid[ny][nx] == '#':
+                        grid[ny][nx] = ' '
+                        changes += 1
+                        new_openings += 1
+                        if new_openings >= 2:  # Assure au moins deux nouvelles connexions
+                            break
+        
+        # 3. Amélioration des corridors
+        rng.shuffle(corridors)
+        for x, y in corridors:
+            if not _is_corridor(grid, x, y):
+                continue
+                
+            # Tente d'ouvrir une connexion diagonale pour créer des chemins alternatifs
+            diagonals = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+            rng.shuffle(diagonals)
+            
+            for dx, dy in diagonals:
                 nx, ny = x + dx, y + dy
-                if 0 < nx < w - 1 and 0 < ny < h - 1 and grid[ny][nx] == '#':
-                    # Ouvre cette paroi pour créer une connexion
+                if (0 < nx < w-1 and 0 < ny < h-1 and 
+                    grid[ny][nx] == '#' and 
+                    _count_wall_neighbors(grid, nx, ny) >= 3):
+                    # Crée un passage en ouvrant la diagonale et un chemin vers elle
                     grid[ny][nx] = ' '
+                    grid[y][ny] = ' '
+                    grid[ny][x] = ' '
                     changes += 1
                     break
+        
+        # 2. Connecte les régions isolées
+        disconnected = _find_disconnected_regions(grid)
+        for x, y in disconnected:
+            # Cherche le chemin le plus court vers une région connectée
+            shortest_path = None
+            min_dist = float('inf')
+            
+            for dy in range(-3, 4):
+                for dx in range(-3, 4):
+                    nx, ny = x + dx, y + dy
+                    if 0 < nx < w-1 and 0 < ny < h-1:
+                        if grid[ny][nx] != '#' and (nx, ny) not in disconnected:
+                            dist = abs(dx) + abs(dy)
+                            if dist < min_dist:
+                                min_dist = dist
+                                shortest_path = (dx, dy)
+            
+            if shortest_path:
+                dx, dy = shortest_path
+                # Crée un passage direct
+                curr_x, curr_y = x, y
+                while (curr_x, curr_y) != (x + dx, y + dy):
+                    if abs(curr_x - (x + dx)) > abs(curr_y - (y + dy)):
+                        curr_x += 1 if dx > 0 else -1
+                    else:
+                        curr_y += 1 if dy > 0 else -1
+                    grid[curr_y][curr_x] = ' '
+                changes += 1
+        
         if changes == 0:
             break
 
@@ -279,7 +409,8 @@ def generate_map(width: int, height: int, *, num_ghosts: int = 4, seed: int | No
     """
     Génère une carte procédurale:
     - Labyrinthe parfait de base (DFS sur grille impaire)
-    - Quelques "salles" grossières sculptées dans le labyrinthe
+    - Salles et connexions additionnelles pour plus de diversité
+    - Optimisation poussée de la connectivité et élimination des impasses
     - Placement de P, G, pastilles '.' et super pastilles 'o'
     - Retourne List[str] utilisable par GameMap(rows)
     """
@@ -288,11 +419,29 @@ def generate_map(width: int, height: int, *, num_ghosts: int = 4, seed: int | No
     width = max(15, width)
     height = max(11, height)
 
-    grid = _carve_maze(width, height, rng)
-    # Moins de salles pour limiter les zones trop ouvertes
-    _sprinkle_rooms(grid, room_attempts=2, rng=rng)
-    # Connecte les cul-de-sacs pour éviter les voies sans issue
-    _reduce_dead_ends(grid, rng, max_passes=4)
+    while True:
+        grid = _carve_maze(width, height, rng)
+        
+        # Ajoute quelques salles pour diversifier
+        _sprinkle_rooms(grid, room_attempts=3, rng=rng)
+        
+        # Plusieurs passes d'amélioration de la connectivité
+        for _ in range(2):
+            _reduce_dead_ends(grid, rng, max_passes=6)
+            
+            # Vérifie qu'il ne reste pas trop d'impasses
+            dead_ends = sum(1 for y in range(1, height-1) 
+                          for x in range(1, width-1)
+                          if grid[y][x] != '#' and _open_neighbors_count(grid, x, y) == 1)
+            
+            # Si moins de 5% d'impasses, la carte est acceptable
+            if dead_ends <= (width * height * 0.05):
+                break
+        
+        # Vérifie que la carte est complètement connectée
+        if not _find_disconnected_regions(grid):
+            break  # Carte valide trouvée
+        # Sinon, réessaye avec une nouvelle carte
     # Ajoute la cage 5x5 avec sortie et centre 'C'
     cage_center = _add_cage(grid)
     # Place entités en privilégiant la cage pour les fantômes
