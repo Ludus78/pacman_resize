@@ -3,7 +3,7 @@
 Ce module gère toutes les collisions entre Pacman et les éléments du jeu
 (pastilles, fantômes, etc.).
 """
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 from game import settings, hardcore
 from game.utils import get_ghost_points
 from game.constants import (
@@ -14,17 +14,19 @@ from game.constants import (
 
 if TYPE_CHECKING:
     from game.game_state import GameState
+    from game.sound_manager import SoundManager
 
 
 class CollisionManager:
     """Gère les collisions et interactions du jeu."""
     
     @staticmethod
-    def check_pellet_collision(state: 'GameState') -> None:
+    def check_pellet_collision(state: 'GameState', sound_manager: Optional['SoundManager'] = None) -> None:
         """Vérifie si Pacman mange une pastille.
         
         Args:
             state: État du jeu
+            sound_manager: Gestionnaire de sons (optionnel)
         """
         ppos = (state.pacman.position.x, state.pacman.position.y)
         
@@ -33,16 +35,21 @@ class CollisionManager:
             state.score.add(state.dots[ppos].value)
             del state.dots[ppos]
             
+            # Joue le son de manger une pastille
+            if sound_manager:
+                sound_manager.play_pellet_eat()
+            
             if settings.hardcore_mode:
                 hardcore.decrease()
     
     @staticmethod
-    def check_power_pellet_collision(state: 'GameState', level_number: int) -> None:
+    def check_power_pellet_collision(state: 'GameState', level_number: int, sound_manager: Optional['SoundManager'] = None) -> None:
         """Vérifie si Pacman mange une super-pastille.
         
         Args:
             state: État du jeu
             level_number: Numéro du niveau actuel
+            sound_manager: Gestionnaire de sons (optionnel)
         """
         ppos = (state.pacman.position.x, state.pacman.position.y)
         
@@ -50,6 +57,10 @@ class CollisionManager:
         if ppos in state.power_dots:
             state.score.add(state.power_dots[ppos].value)
             del state.power_dots[ppos]
+            
+            # Joue le son de la super-pastille
+            if sound_manager:
+                sound_manager.play_power_pellet()
             
             if settings.hardcore_mode:
                 hardcore.decrease()
@@ -80,11 +91,12 @@ class CollisionManager:
             state.ghost_combo_counter = 0
     
     @staticmethod
-    def check_ghost_collision(state: 'GameState') -> bool:
+    def check_ghost_collision(state: 'GameState', sound_manager: Optional['SoundManager'] = None) -> bool:
         """Vérifie les collisions entre Pacman et les fantômes.
         
         Args:
             state: État du jeu
+            sound_manager: Gestionnaire de sons (optionnel)
             
         Returns:
             True si Pacman meurt (Game Over), False sinon
@@ -100,27 +112,34 @@ class CollisionManager:
                     eaten_indexes.append(idx)
                 else:
                     # Fantôme tue Pacman
+                    if sound_manager:
+                        sound_manager.play_death()
                     return True
         
         # Retire les fantômes mangés (en ordre inverse pour préserver les indices)
         if eaten_indexes:
             for idx in reversed(eaten_indexes):
-                CollisionManager._eat_ghost(state, idx)
+                CollisionManager._eat_ghost(state, idx, sound_manager)
         
         return False
     
     @staticmethod
-    def _eat_ghost(state: 'GameState', idx: int) -> None:
+    def _eat_ghost(state: 'GameState', idx: int, sound_manager: Optional['SoundManager'] = None) -> None:
         """Mange un fantôme et le met en respawn.
         
         Args:
             state: État du jeu
             idx: Index du fantôme à manger
+            sound_manager: Gestionnaire de sons (optionnel)
         """
         # Ajoute les points selon le combo
         ghost_points = get_ghost_points(state.ghost_combo_counter)
         state.score.add(ghost_points)
         state.ghost_combo_counter += 1
+        
+        # Joue le son du fantôme mangé
+        if sound_manager:
+            sound_manager.play_ghost_eaten()
         
         # Retire le fantôme et le met en file de respawn
         g = state.ghosts.pop(idx)

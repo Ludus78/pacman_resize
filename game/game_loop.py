@@ -10,6 +10,7 @@ from game.renderer import Renderer
 from game.collision_manager import CollisionManager
 from game.entities import Position, Ghost
 from game.utils import wait_for_enter
+from game.sound_manager import SoundManager
 from game import settings, hardcore
 from game.constants import (
     TILE, FPS, MIN_FOV, FOV_SHRINK_RATE
@@ -32,6 +33,7 @@ class GameLoop:
         # Gestionnaires
         self.level_manager = LevelManager()
         self.renderer = Renderer()
+        self.sound_manager = SoundManager()
         
         # Charge la carte initiale
         initial_rows = self.level_manager.get_initial_map()
@@ -62,6 +64,9 @@ class GameLoop:
         self.level1_completion_time = None
         self.level1_completed = False
         self.use_existing_screen = existing_screen is not None
+        
+        # Lance la musique de fond
+        self.sound_manager.play_background_music()
     
     def run(self):
         """Lance la boucle principale du jeu.
@@ -101,6 +106,7 @@ class GameLoop:
         
         # Nettoyage
         hardcore.stop()
+        self.sound_manager.stop_background_music()
         
         # Ne ferme pygame que si on a créé notre propre fenêtre
         if not self.use_existing_screen:
@@ -160,7 +166,7 @@ class GameLoop:
         self._update_ghosts(dt)
         
         # Collision finale (vérification supplémentaire)
-        if CollisionManager.check_ghost_collision(self.state):
+        if CollisionManager.check_ghost_collision(self.state, self.sound_manager):
             self.state.game_over = True
         
         # Gestion des timers
@@ -210,11 +216,11 @@ class GameLoop:
                 self.state.pacman.update(1 / self.state.pacman.speed, game_map=self.state.game_map)
                 
                 # Collisions avec collectibles
-                CollisionManager.check_pellet_collision(self.state)
-                CollisionManager.check_power_pellet_collision(self.state, self.level_manager.level_number)
+                CollisionManager.check_pellet_collision(self.state, self.sound_manager)
+                CollisionManager.check_power_pellet_collision(self.state, self.level_manager.level_number, self.sound_manager)
                 
                 # Collision avec fantômes
-                if CollisionManager.check_ghost_collision(self.state):
+                if CollisionManager.check_ghost_collision(self.state, self.sound_manager):
                     self.state.game_over = True
                     break
         
@@ -380,10 +386,15 @@ class GameLoop:
             wait_for_enter(self.state.screen, self.clock)
             return False
         
+        # Arrête la musique de fond et joue le son de mort (déjà joué à la mort)
+        self.sound_manager.stop_background_music()
+        
         if wait_for_enter(self.state.screen, self.clock):
             # Redémarrage complet
             new_rows = self.level_manager.reset()
             self.state.reset_round(new_rows, self.level_manager.ghost_speed_factor, reset_score=True)
+            # Relance la musique de fond
+            self.sound_manager.play_background_music()
             return True
         else:
             return False
@@ -394,6 +405,9 @@ class GameLoop:
         Returns:
             False si on quitte, True si on continue
         """
+        # Joue le son de victoire
+        self.sound_manager.play_victory()
+        
         # Enregistre la complétion du niveau 1 en mode tournoi
         if self.tournament_mode and self.level_manager.level_number == 1 and not self.level1_completed:
             self.level1_completion_time = self.state.elapsed_time - self.level1_start_time
