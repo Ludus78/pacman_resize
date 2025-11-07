@@ -29,6 +29,9 @@ class SoundManager:
             'background': None,        # Musique de fond
         }
         
+        # Canaux séparés pour les sons qui ne doivent pas être coupés
+        self.pellet_channel = pygame.mixer.find_channel()
+        
         self.background_music_playing = False
         self._load_sounds()
     
@@ -58,9 +61,17 @@ class SoundManager:
                 print(f"⚠ Pas de fichier trouvé pour: {sound_name}")
     
     def play_pellet_eat(self) -> None:
-        """Joue le son de Pacman mangeant une pastille."""
+        """Joue le son de Pacman mangeant une pastille.
+        
+        Le son n'est pas coupé/recommencé - il finit naturellement même
+        si on mange une autre pastille rapidement.
+        """
         if self.sounds['pellet_eat']:
-            self.sounds['pellet_eat'].play()
+            # Utilise un canal séparé pour que le son finisse sans interruption
+            if self.pellet_channel is None:
+                self.pellet_channel = pygame.mixer.find_channel()
+            if self.pellet_channel:
+                self.pellet_channel.play(self.sounds['pellet_eat'])
     
     def play_power_pellet(self) -> None:
         """Joue le son de Pacman mangeant une super-pastille."""
