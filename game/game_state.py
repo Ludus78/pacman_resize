@@ -16,7 +16,7 @@ from game.constants import (
 class GameState:
     """Encapsule l'état complet d'une partie de Pacman."""
     
-    def __init__(self, width_px: int, height_px: int, existing_screen: pygame.Surface = None):
+    def __init__(self, width_px: int, height_px: int, existing_screen: Optional[pygame.Surface] = None):
         """Initialise l'état du jeu.
         
         Args:
@@ -29,6 +29,9 @@ class GameState:
         self.height_px = height_px
         self.screen: Optional[pygame.Surface] = existing_screen
         self.use_existing_screen = existing_screen is not None
+        self.render_surface: Optional[pygame.Surface] = None
+        self.render_scale: float = 1.0
+        self.render_offset: Tuple[int, int] = (0, 0)
         
         # Carte et entités
         self.game_map: Optional[GameMap] = None
@@ -87,6 +90,15 @@ class GameState:
         # Ne recrée l'écran que si on n'utilise pas un écran existant
         if not self.use_existing_screen:
             self.screen = pygame.display.set_mode((0, 0), pygame.APPACTIVE)
+
+        # Surface de rendu de base (non mise à l'échelle)
+        surface_size = (self.width_px, self.height_px + UI_OFFSET)
+        if (self.render_surface is None or
+                self.render_surface.get_size() != surface_size):
+            self.render_surface = pygame.Surface(surface_size).convert_alpha()
+        self.render_surface.fill((0, 0, 0))
+        self.render_scale = 1.0
+        self.render_offset = (0, 0)
         
         # Recrée les collectibles
         self._create_collectibles()
@@ -190,4 +202,22 @@ class GameState:
         """
         # Victoire = tous les dots ET power_dots ont été mangés
         return len(self.dots) == 0 and len(self.power_dots) == 0
+
+    def to_screen_rect(self, rect: pygame.Rect) -> pygame.Rect:
+        """Convertit un rectangle de la surface de rendu vers l'écran.
+
+        Args:
+            rect: Rectangle dans les coordonnées de la surface de rendu
+
+        Returns:
+            Rectangle converti dans les coordonnées de l'écran
+        """
+        scale = self.render_scale
+        offset_x, offset_y = self.render_offset
+        new_rect = rect.copy()
+        new_rect.x = int(rect.x * scale + offset_x)
+        new_rect.y = int(rect.y * scale + offset_y)
+        new_rect.width = int(rect.width * scale)
+        new_rect.height = int(rect.height * scale)
+        return new_rect
 

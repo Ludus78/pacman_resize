@@ -402,8 +402,9 @@ class GameLoop:
         # Récupère le rectangle du bouton depuis le renderer
         btn_rect = self.renderer._draw_victory(self.state)
         pygame.display.flip()
+        screen_rect = self.state.to_screen_rect(btn_rect)
         
-        if wait_for_button_or_enter(self.state.screen, self.clock, btn_rect):
+        if wait_for_button_or_enter(self.state.screen, self.clock, screen_rect):
             # Charge le niveau suivant
             next_rows = self.level_manager.get_next_map()
             
