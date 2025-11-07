@@ -19,9 +19,15 @@ from game.constants import (
 class GameLoop:
     """Gère la boucle principale du jeu."""
     
-    def __init__(self):
-        """Initialise la boucle de jeu."""
-        pygame.init()
+    def __init__(self, tournament_mode: bool = False, existing_screen: pygame.Surface = None):
+        """Initialise la boucle de jeu.
+        
+        Args:
+            tournament_mode: Si True, active le mode tournoi
+            existing_screen: Surface pygame existante à réutiliser (None pour créer une nouvelle)
+        """
+        if existing_screen is None:
+            pygame.init()
         
         # Gestionnaires
         self.level_manager = LevelManager()
@@ -33,7 +39,7 @@ class GameLoop:
         height_px = len(initial_rows) * TILE
         
         # État du jeu
-        self.state = GameState(width_px, height_px)
+        self.state = GameState(width_px, height_px, existing_screen)
         
         # Initialise la première manche
         self.state.reset_round(initial_rows, self.level_manager.ghost_speed_factor, reset_score=True)
@@ -49,10 +55,26 @@ class GameLoop:
         
         # Titre de la fenêtre
         pygame.display.set_caption("Pacman")
+        
+        # Mode tournoi
+        self.tournament_mode = tournament_mode
+        self.level1_start_time = 0.0
+        self.level1_completion_time = None
+        self.level1_completed = False
+        self.use_existing_screen = existing_screen is not None
     
-    def run(self) -> None:
-        """Lance la boucle principale du jeu."""
+    def run(self):
+        """Lance la boucle principale du jeu.
+        
+        Returns:
+            Si tournament_mode=True: (score, level, time_level1, level1_completed)
+            Sinon: None
+        """
         running = True
+        
+        # Enregistre le temps de départ du niveau 1 pour le tournoi
+        if self.tournament_mode:
+            self.level1_start_time = self.state.elapsed_time
         
         while running:
             dt = self.clock.tick(FPS) / 1000.0
@@ -79,7 +101,21 @@ class GameLoop:
         
         # Nettoyage
         hardcore.stop()
-        pygame.quit()
+        
+        # Ne ferme pygame que si on a créé notre propre fenêtre
+        if not self.use_existing_screen:
+            pygame.quit()
+        
+        # Retourne les statistiques en mode tournoi
+        if self.tournament_mode:
+            return (
+                self.state.score.value,
+                self.level_manager.level_number,
+                self.level1_completion_time,
+                self.level1_completed
+            )
+        
+        return None
     
     def _handle_events(self) -> bool:
         """Gère les événements pygame.
@@ -339,6 +375,11 @@ class GameLoop:
         Returns:
             False si on quitte, True si on redémarre
         """
+        # En mode tournoi, on quitte directement après le game over
+        if self.tournament_mode:
+            wait_for_enter(self.state.screen, self.clock)
+            return False
+        
         if wait_for_enter(self.state.screen, self.clock):
             # Redémarrage complet
             new_rows = self.level_manager.reset()
@@ -353,6 +394,11 @@ class GameLoop:
         Returns:
             False si on quitte, True si on continue
         """
+        # Enregistre la complétion du niveau 1 en mode tournoi
+        if self.tournament_mode and self.level_manager.level_number == 1 and not self.level1_completed:
+            self.level1_completion_time = self.state.elapsed_time - self.level1_start_time
+            self.level1_completed = True
+        
         # Récupère le rectangle du bouton depuis le renderer
         btn_rect = self.renderer._draw_victory(self.state)
         pygame.display.flip()
@@ -368,6 +414,12 @@ class GameLoop:
             
             # Nouvelle manche sans réinitialiser le score
             self.state.reset_round(next_rows, self.level_manager.ghost_speed_factor, reset_score=False)
+            
+            # Met à jour le temps de départ pour le prochain niveau en mode tournoi
+            if self.tournament_mode and self.level_manager.level_number == 2:
+                # On a passé au niveau 2, on ne track plus le temps niveau 1
+                pass
+            
             return True
         else:
             return False

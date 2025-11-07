@@ -3,7 +3,7 @@ from typing import List
 from . import settings
 
 
-MAIN_MENU_ITEMS: List[str] = ["JOUER", "PARAMÈTRES", "QUITTER"]
+MAIN_MENU_ITEMS: List[str] = ["JOUER", "MODE TOURNOI", "SCOREBOARD", "PARAMÈTRES", "QUITTER"]
 
 
 # Affiche les items du menu avec indicateurs visuels selon l'item sélectionné
@@ -69,10 +69,21 @@ def _run_menu(stdscr: "curses._CursesWindow", items: List[str], title: str = "")
             return "RETOUR"
 
 def run_parameters_menu(stdscr: "curses._CursesWindow") -> None:
+    from game.tournament import tournament_manager
+    from game.records import records_manager
     while True:
-        choice = _run_menu(stdscr, [f"MODE HARDCORE : {'ON' if settings.hardcore_mode else 'OFF'}", "RETOUR"], title="PARAMÈTRES")
+        choice = _run_menu(stdscr, [
+            f"MODE HARDCORE : {'ON' if settings.hardcore_mode else 'OFF'}", 
+            "RÉINITIALISER TOURNOI",
+            "RÉINITIALISER RECORDS",
+            "RETOUR"
+        ], title="PARAMÈTRES")
         if choice.startswith("MODE HARDCORE"):
             settings.hardcore_mode = not settings.hardcore_mode
+        elif choice == "RÉINITIALISER TOURNOI":
+            tournament_manager.reset()
+        elif choice == "RÉINITIALISER RECORDS":
+            records_manager.reset()
         else:
             break
 

@@ -16,17 +16,19 @@ from game.constants import (
 class GameState:
     """Encapsule l'état complet d'une partie de Pacman."""
     
-    def __init__(self, width_px: int, height_px: int):
+    def __init__(self, width_px: int, height_px: int, existing_screen: pygame.Surface = None):
         """Initialise l'état du jeu.
         
         Args:
             width_px: Largeur de la fenêtre en pixels
             height_px: Hauteur de la fenêtre en pixels
+            existing_screen: Surface pygame existante à réutiliser (None pour créer une nouvelle)
         """
         # Fenêtre et affichage
         self.width_px = width_px
         self.height_px = height_px
-        self.screen: Optional[pygame.Surface] = None
+        self.screen: Optional[pygame.Surface] = existing_screen
+        self.use_existing_screen = existing_screen is not None
         
         # Carte et entités
         self.game_map: Optional[GameMap] = None
@@ -78,10 +80,13 @@ class GameState:
         # Recharge la carte
         self.game_map = GameMap(rows)
         
-        # Adapte la taille de la fenêtre si nécessaire
+        # Adapte la taille de la fenêtre si nécessaire (mode plein écran)
         self.width_px = max(len(r) for r in self.game_map.rows) * TILE if self.game_map.rows else 28 * TILE
         self.height_px = len(self.game_map.rows) * TILE
-        self.screen = pygame.display.set_mode((self.width_px, self.height_px + UI_OFFSET))
+        
+        # Ne recrée l'écran que si on n'utilise pas un écran existant
+        if not self.use_existing_screen:
+            self.screen = pygame.display.set_mode((0, 0), pygame.APPACTIVE)
         
         # Recrée les collectibles
         self._create_collectibles()
