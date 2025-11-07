@@ -1,0 +1,6 @@
+{
+  "players": [],
+  "current_player_idx": 0,
+  "is_active": false,
+  "tournament_started": false
+}

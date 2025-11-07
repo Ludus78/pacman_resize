@@ -33,8 +33,20 @@ class Renderer:
             state: État actuel du jeu
             level_number: Numéro du niveau actuel
         """
-        # Fond noir
-        state.screen.fill(COLOR_BLACK)
+        target_screen = state.screen
+        if target_screen is None:
+            return
+
+        render_surface = state.render_surface
+        if render_surface is None or render_surface.get_size() != (state.width_px, state.height_px + UI_OFFSET):
+            render_surface = pygame.Surface((state.width_px, state.height_px + UI_OFFSET)).convert_alpha()
+            state.render_surface = render_surface
+
+        # Dessine sur la surface de base
+        original_screen = state.screen
+        state.screen = render_surface
+
+        render_surface.fill(COLOR_BLACK)
         
         # Calcule la position de Pacman avec interpolation
         px, py = self._get_pacman_position(state)
@@ -60,6 +72,30 @@ class Renderer:
         elif state.victory:
             self._draw_victory(state)
         
+        # Restaure l'écran cible
+        state.screen = original_screen
+
+        # Mise à l'échelle pour remplir l'écran
+        target_screen.fill(COLOR_BLACK)
+        render_width, render_height = render_surface.get_size()
+        screen_width = target_screen.get_width()
+        screen_height = target_screen.get_height()
+
+        scale = min(screen_width / render_width, screen_height / render_height)
+        scaled_width = max(1, int(render_width * scale))
+        scaled_height = max(1, int(render_height * scale))
+        offset_x = (screen_width - scaled_width) // 2
+        offset_y = (screen_height - scaled_height) // 2
+
+        state.render_scale = scale
+        state.render_offset = (offset_x, offset_y)
+
+        if scale != 1.0:
+            scaled_surface = pygame.transform.smoothscale(render_surface, (scaled_width, scaled_height))
+            target_screen.blit(scaled_surface, (offset_x, offset_y))
+        else:
+            target_screen.blit(render_surface, (offset_x, offset_y))
+
         # Met à jour l'affichage
         pygame.display.flip()
     
