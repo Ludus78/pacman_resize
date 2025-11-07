@@ -1,17 +1,5 @@
 {
-  "best_score": {
-    "player_name": "a",
-    "value": 618.0,
-    "total_score": 631
-  },
-  "best_level": {
-    "player_name": "a",
-    "value": 2.0,
-    "total_score": 631
-  },
-  "best_time_level1": {
-    "player_name": "a",
-    "value": 0.8510000000000006,
-    "total_score": 631
-  }
+  "best_score": null,
+  "best_level": null,
+  "best_time_level1": null
 }

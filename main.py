@@ -121,7 +121,7 @@ def show_scoreboard(menu: GraphicalMenu):
         y_offset = 200
         
         # Record de score
-        record_title = font_medium.render("🏆 MEILLEUR SCORE", True, (255, 215, 0))
+        record_title = font_medium.render("MEILLEUR SCORE", True, (255, 215, 0))
         screen.blit(record_title, (screen.get_width() // 2 - record_title.get_width() // 2, y_offset))
         y_offset += 60
         
@@ -135,7 +135,7 @@ def show_scoreboard(menu: GraphicalMenu):
         y_offset += 100
         
         # Record de niveau
-        record_title = font_medium.render("🎖️ NIVEAU MAXIMUM", True, (192, 192, 192))
+        record_title = font_medium.render("NIVEAU MAXIMUM", True, (192, 192, 192))
         screen.blit(record_title, (screen.get_width() // 2 - record_title.get_width() // 2, y_offset))
         y_offset += 60
         
@@ -149,7 +149,7 @@ def show_scoreboard(menu: GraphicalMenu):
         y_offset += 100
         
         # Record de temps
-        record_title = font_medium.render("⚡ NIVEAU 1 LE PLUS RAPIDE", True, (205, 127, 50))
+        record_title = font_medium.render("TEMPS NIVEAU 1", True, (205, 127, 50))
         screen.blit(record_title, (screen.get_width() // 2 - record_title.get_width() // 2, y_offset))
         y_offset += 60
         
