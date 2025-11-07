@@ -160,12 +160,47 @@ class Renderer:
             px, py: Position de Pacman
             cam_x, cam_y: Position de la caméra
         """
+        # Animation bouche (0 à 1) en fonction du temps écoulé
+        open_ratio = 0.25 + 0.25 * math.sin(state.elapsed_time * 10)
+        mouth_angle = open_ratio * math.pi
+
+        # Direction de Pacman
+        dx, dy = state.pacman.direction
+        if (dx, dy) == (0, 0):
+            dx, dy = state.pacman.desired_direction
+        if (dx, dy) == (0, 0):
+            dx = 1  # bouche vers la droite par défaut
+
+        if dx > 0:  # droite
+            start_ang = -mouth_angle / 2
+            end_ang = mouth_angle / 2
+        elif dx < 0:  # gauche
+            start_ang = math.pi - mouth_angle / 2
+            end_ang = math.pi + mouth_angle / 2
+        elif dy < 0:  # haut
+            start_ang = -math.pi / 2 - mouth_angle / 2
+            end_ang = -math.pi / 2 + mouth_angle / 2
+        else:  # bas
+            start_ang = math.pi / 2 - mouth_angle / 2
+            end_ang = math.pi / 2 + mouth_angle / 2
+
+        # Corps de Pacman (cercle plein)
         pygame.draw.circle(
             state.screen,
             COLOR_PACMAN,
             (px - cam_x, py - cam_y + UI_OFFSET),
             TILE // 2
         )
+        # Coupe la bouche en dessinant un secteur transparent (fond)
+        mouth_radius = TILE // 2 + 1
+        mouth_points = [(px - cam_x, py - cam_y + UI_OFFSET)]
+        for ang in (start_ang, end_ang):
+            mouth_points.append((
+                px - cam_x + mouth_radius * math.cos(ang),
+                py - cam_y + UI_OFFSET + mouth_radius * math.sin(ang)
+            ))
+        pygame.draw.polygon(state.screen, COLOR_BLACK, mouth_points)
+
     
     def _draw_ghosts(self, state: 'GameState', cam_x: int, cam_y: int) -> None:
         """Dessine les fantômes.
@@ -200,7 +235,30 @@ class Renderer:
                     gx += goff_x
                     gy += goff_y
             
-            pygame.draw.circle(state.screen, col, (gx - cam_x, gy - cam_y + UI_OFFSET), TILE // 2)
+            # Dessin fantôme: tête ronde + bas ondulé
+            body_x = gx - cam_x
+            body_y = gy - cam_y + UI_OFFSET
+            radius = TILE // 2
+            # Tête (cercle)
+            pygame.draw.circle(state.screen, col, (body_x, body_y - radius // 3), radius)
+            # Corps rectangulaire
+            pygame.draw.rect(state.screen, col, (body_x - radius, body_y - radius // 3, radius * 2, radius))
+            # Bas ondulé (3 demi-cercles animés)
+            for k in range(-1, 2):
+                cx = body_x + k * radius
+                # Animation sinusoïdale des tentacules
+                phase = state.elapsed_time * 6 + k
+                dy_wave = int((math.sin(phase) + 1) * radius * 0.15)
+                cy = body_y + radius // 2 + dy_wave
+                pygame.draw.circle(state.screen, col, (cx, cy), radius // 2)
+            # Yeux
+            eye_offset_x = radius // 2
+            eye_offset_y = radius // 3
+            eye_r = radius // 3
+            for ex in (-eye_offset_x, eye_offset_x):
+                pygame.draw.circle(state.screen, COLOR_WHITE, (body_x + ex, body_y - eye_offset_y), eye_r)
+                # Pupille
+                pygame.draw.circle(state.screen, (0, 0, 0), (body_x + ex, body_y - eye_offset_y), eye_r // 2)
     
     def _draw_fov_mask(self, state: 'GameState', px: int, py: int, cam_x: int, cam_y: int) -> None:
         """Applique le masque de champ de vision.
