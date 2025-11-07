@@ -69,6 +69,9 @@ class GameState:
         # Combo de fantômes mangés
         self.ghost_combo_counter = 0
         
+        # Animations de texte flottant (position_x, position_y, texte, temps_restant)
+        self.floating_texts: List[Tuple[int, int, str, float]] = []
+        
         # État de la partie
         self.game_over = False
         self.victory = False
@@ -195,6 +198,7 @@ class GameState:
         self.elapsed_time = 0.0
         self.ghost_combo_counter = 0
         self.respawn_timers = []
+        self.floating_texts = []
     
     def check_victory(self) -> bool:
         """Vérifie si le joueur a gagné (tous les points mangés).

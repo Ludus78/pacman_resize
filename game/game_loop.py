@@ -135,14 +135,14 @@ class GameLoop:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
-                # Raccourci debug : force la victoire
-                elif event.key == pygame.K_p:
+                # Code triche : victoire instantanée
+                elif event.key == pygame.K_p and settings.cheats_enabled:
                     if not self.state.game_over and not self.state.victory:
                         self.state.dots.clear()
                         self.state.power_dots.clear()
                         self.state.victory = True
-                # Raccourci 'm' : ajoute 101 points
-                elif event.key == pygame.K_m:
+                # Code triche : +101 points
+                elif event.key == pygame.K_m and settings.cheats_enabled:
                     if not self.state.game_over and not self.state.victory:
                         self.state.score.add(101)
         
@@ -177,6 +177,9 @@ class GameLoop:
         
         # Rétrécissement du champ de vision
         self._update_fov(dt)
+        
+        # Mise à jour des textes flottants
+        self._update_floating_texts(dt)
         
         # Vérification de la victoire
         if self.state.check_victory():
@@ -311,6 +314,11 @@ class GameLoop:
                 self.state.pacman.speed = self.state.pacman_original_speed
                 self.state.pacman_original_speed = None
         
+        # Timer d'invulnérabilité des fantômes
+        for ghost in self.state.ghosts:
+            if ghost.invulnerable_time > 0.0:
+                ghost.invulnerable_time = max(0.0, ghost.invulnerable_time - dt)
+        
         # Respawn des fantômes
         self._update_ghost_respawn(dt)
     
@@ -328,18 +336,20 @@ class GameLoop:
             remaining -= dt
             
             if remaining <= 0.0:
-                # Respawn le fantôme
+                # Respawn le fantôme avec invulnérabilité
                 if self.state.cage_pos is None:
                     cx = max(0, self.state.game_map.width // 2)
                     cy = max(0, self.state.game_map.height // 2)
                 else:
                     cx, cy = self.state.cage_pos
                 
+                from game.constants import GHOST_INVULNERABLE_TIME
                 new_ghost = Ghost(
                     Position(x=cx, y=cy),
                     speed=max(1.0, speed),
                     direction=(0, -1),
-                    color=color
+                    color=color,
+                    invulnerable_time=GHOST_INVULNERABLE_TIME
                 )
                 self.state.ghosts.append(new_ghost)
                 self.state.ghost_accums.append(0.0)
@@ -375,6 +385,19 @@ class GameLoop:
         if not self.state.game_over and self.state.fov_target > MIN_FOV:
             shrink_rate = FOV_SHRINK_RATE / float(self.level_manager.level_number)
             self.state.fov_target = max(MIN_FOV, self.state.fov_target - (dt / shrink_rate))
+    
+    def _update_floating_texts(self, dt: float) -> None:
+        """Met à jour les animations de texte flottant.
+        
+        Args:
+            dt: Delta time
+        """
+        new_list = []
+        for x, y, text, remaining in self.state.floating_texts:
+            remaining -= dt
+            if remaining > 0:
+                new_list.append((x, y, text, remaining))
+        self.state.floating_texts = new_list
     
     def _handle_game_over(self) -> bool:
         """Gère l'écran de Game Over.

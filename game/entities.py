@@ -97,7 +97,7 @@ class Pacman(MovableEntity):
 
     def can_move_to(self, x: int, y: int, game_map) -> bool:
         """
-        Retourne True si la case (x, y) est libre ; utilise # comme mur et fallback méthodes usuelles.
+        Retourne True si la case (x, y) est libre ; utilise # comme mur et C comme cage interdite.
         """
         grid = getattr(game_map, "MAP", None)
         if grid is None and isinstance(game_map, (list, tuple)):
@@ -109,7 +109,8 @@ class Pacman(MovableEntity):
             row = grid[y]
             if x < 0 or x >= len(row):
                 return False
-            return row[x] != "#"
+            # Pacman ne peut pas entrer dans la cage (marquée 'C')
+            return row[x] not in ("#", "C")
 
         for method in ("is_wall", "is_blocked"):
             fn = getattr(game_map, method, None)
@@ -121,7 +122,8 @@ class Pacman(MovableEntity):
         fn = getattr(game_map, "get_tile", None)
         if callable(fn):
             try:
-                return fn(x, y) != "#"
+                tile = fn(x, y)
+                return tile not in ("#", "C")
             except Exception:
                 pass
 
@@ -133,7 +135,7 @@ class Pacman(MovableEntity):
 
 class Ghost(MovableEntity):
     # Représente un fantôme, adversaire de Pacman
-    def __init__(self, position: Position, color: str = "red", **kwargs) -> None:
+    def __init__(self, position: Position, color: str = "red", invulnerable_time: float = 0.0, **kwargs) -> None:
         # Initialise le fantôme avec une position, une couleur et des paramètres de déplacement
         super().__init__(position, **kwargs)
         self.color: str = color
@@ -141,6 +143,8 @@ class Ghost(MovableEntity):
         self.change_dir_chance: float = 0.01
         # IA: probabilité de poursuivre Pacman au lieu d'errer aléatoirement
         self.chase_chance: float = 0.95  # 95% de chance de te poursuivre activement
+        # Temps d'invulnérabilité après respawn (en secondes)
+        self.invulnerable_time: float = invulnerable_time
 
     def can_move_to(self, x: int, y: int, game_map) -> bool:
         """

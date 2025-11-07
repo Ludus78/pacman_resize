@@ -66,6 +66,9 @@ class Renderer:
         self._draw_pacman(state, px, py, cam_x, cam_y)
         self._draw_ghosts(state, cam_x, cam_y)
         
+        # Dessine les textes flottants
+        self._draw_floating_texts(state, cam_x, cam_y)
+        
         # Applique le masque de champ de vision
         self._draw_fov_mask(state, px, py, cam_x, cam_y)
         
@@ -257,7 +260,11 @@ class Renderer:
         """
         for i, ghost in enumerate(state.ghosts):
             # Couleur selon le mode
-            if state.frightened_timer > 0.0:
+            if ghost.invulnerable_time > 0.0:
+                # Fantôme invulnérable : blanc clignotant
+                blink = int(state.elapsed_time * 10) % 2
+                col = (255, 255, 255) if blink else (200, 200, 200)
+            elif state.frightened_timer > 0.0:
                 col = COLOR_FRIGHTENED_GHOST
             else:
                 col = ghost.color
@@ -305,6 +312,30 @@ class Renderer:
                 pygame.draw.circle(state.screen, COLOR_WHITE, (body_x + ex, body_y - eye_offset_y), eye_r)
                 # Pupille
                 pygame.draw.circle(state.screen, (0, 0, 0), (body_x + ex, body_y - eye_offset_y), eye_r // 2)
+    
+    def _draw_floating_texts(self, state: 'GameState', cam_x: int, cam_y: int) -> None:
+        """Dessine les textes flottants (points gagnés).
+        
+        Args:
+            state: État du jeu
+            cam_x, cam_y: Position de la caméra
+        """
+        for text_x, text_y, text, remaining in state.floating_texts:
+            # Animation : monte et devient transparent
+            offset_y = int((1.5 - remaining) * 20)  # Monte de 20 pixels
+            alpha = int(255 * (remaining / 1.5))  # Devient transparent
+            
+            # Position à l'écran
+            sx = text_x - cam_x
+            sy = text_y - cam_y + UI_OFFSET - offset_y
+            
+            # Rendu du texte avec transparence
+            text_surface = self.score_big_font.render(text, True, (255, 255, 100))
+            text_surface.set_alpha(alpha)
+            
+            # Centre le texte
+            text_rect = text_surface.get_rect(center=(sx, sy))
+            state.screen.blit(text_surface, text_rect)
     
     def _draw_fov_mask(self, state: 'GameState', px: int, py: int, cam_x: int, cam_y: int) -> None:
         """Applique le masque de champ de vision.

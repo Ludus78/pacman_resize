@@ -24,6 +24,7 @@ MIN_FOV = 5.0  # Champ de vision minimum (en tuiles)
 FOV_SHRINK_RATE = 1.8  # Vitesse de rétrécissement du FOV (secondes par tuile)
 FOV_BOOST = 7  # Tuiles ajoutées au FOV lors d'un power pellet
 GHOST_RESPAWN_TIME = 4.0  # Temps de respawn des fantômes (secondes)
+GHOST_INVULNERABLE_TIME = 3.0  # Temps d'invulnérabilité après respawn (secondes)
 
 # Durées des pouvoirs
 BASE_FRIGHTENED_DURATION = 10.0  # Durée de base du mode frightened (niveau 1)

@@ -5,3 +5,4 @@ notamment le mode hardcore activable via le menu Paramètres.
 """
 
 hardcore_mode: bool = False
+cheats_enabled: bool = False

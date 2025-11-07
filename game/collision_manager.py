@@ -107,6 +107,10 @@ class CollisionManager:
             if (ghost.position.x == state.pacman.position.x and 
                 ghost.position.y == state.pacman.position.y):
                 
+                # Fantôme invulnérable après respawn
+                if ghost.invulnerable_time > 0.0:
+                    continue
+                
                 if state.frightened_timer > 0.0:
                     # Pacman mange le fantôme
                     eaten_indexes.append(idx)
@@ -132,10 +136,20 @@ class CollisionManager:
             idx: Index du fantôme à manger
             sound_manager: Gestionnaire de sons (optionnel)
         """
+        # Position du fantôme avant de le retirer
+        ghost_x = state.ghosts[idx].position.x
+        ghost_y = state.ghosts[idx].position.y
+        
         # Ajoute les points selon le combo
         ghost_points = get_ghost_points(state.ghost_combo_counter)
         state.score.add(ghost_points)
         state.ghost_combo_counter += 1
+        
+        # Ajoute une animation de texte flottant
+        from game.constants import TILE
+        text_x = ghost_x * TILE + TILE // 2
+        text_y = ghost_y * TILE + TILE // 2
+        state.floating_texts.append((text_x, text_y, f"+{ghost_points}", 1.5))
         
         # Joue le son du fantôme mangé
         if sound_manager:

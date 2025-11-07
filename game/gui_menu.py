@@ -180,6 +180,7 @@ class GraphicalMenu:
             # Crée les boutons à chaque frame pour mettre à jour le texte
             buttons = self.create_centered_buttons([
                 f"MODE HARDCORE : {'ON' if settings.hardcore_mode else 'OFF'}",
+                f"CODES CHEAT : {'ON' if settings.cheats_enabled else 'OFF'}",
                 "RÉINITIALISER TOURNOI",
                 "RÉINITIALISER RECORDS",
                 "RETOUR"
@@ -203,11 +204,13 @@ class GraphicalMenu:
                     elif event.key == pygame.K_RETURN:
                         if selected_index == 0:  # Hardcore
                             settings.hardcore_mode = not settings.hardcore_mode
-                        elif selected_index == 1:  # Réinitialiser tournoi
+                        elif selected_index == 1:  # Cheats
+                            settings.cheats_enabled = not settings.cheats_enabled
+                        elif selected_index == 2:  # Réinitialiser tournoi
                             tournament_manager.reset()
-                        elif selected_index == 2:  # Réinitialiser records
+                        elif selected_index == 3:  # Réinitialiser records
                             records_manager.reset()
-                        elif selected_index == 3:  # Retour
+                        elif selected_index == 4:  # Retour
                             return True
                 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -216,6 +219,8 @@ class GraphicalMenu:
                             if button.is_clicked(mouse_pos):
                                 if "HARDCORE" in button.text:
                                     settings.hardcore_mode = not settings.hardcore_mode
+                                elif "CODES CHEAT" in button.text:
+                                    settings.cheats_enabled = not settings.cheats_enabled
                                 elif button.text == "RÉINITIALISER TOURNOI":
                                     tournament_manager.reset()
                                 elif button.text == "RÉINITIALISER RECORDS":
