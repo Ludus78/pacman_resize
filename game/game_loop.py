@@ -270,10 +270,11 @@ class GameLoop:
                         ghost.position.y == self.state.pacman.position.y):
                         
                         if self.state.frightened_timer > 0.0:
-                            CollisionManager._eat_ghost(self.state, i)
+                            CollisionManager._eat_ghost(self.state, i, self.sound_manager)
                             ghost_eaten = True
                             break
                         else:
+                            self.sound_manager.play_death()
                             self.state.game_over = True
                             break
                 
